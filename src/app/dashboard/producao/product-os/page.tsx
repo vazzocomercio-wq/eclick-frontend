@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star, Archive,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star, Archive, Image as ImageIcon,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 // mesmo seletor de designs do Canva que a IA Criativo usa (só reusado, não alterado)
@@ -1703,19 +1703,46 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
   // upload): quem já montou a arte no Canva usa ela de inspiração pro image-to-image.
   // Mesmo seletor de designs do IA Criativo — só reusado, o módulo dele não muda.
   const [canvaOpen, setCanvaOpen] = useState(false)
-  const [canvaByDesign, setCanvaByDesign] = useState<Record<string, string[]>>({})
+  const [canvaByDesign, setCanvaByDesign] = useState<Record<string, { name: string; urls: string[] }>>({})
   const pickedDesignIds = useMemo(() => new Set(Object.keys(canvaByDesign)), [canvaByDesign])
-  const addCanva = (assets: Array<{ canva_design_id: string; storage_url: string | null }>) => {
+  const addCanva = (assets: Array<{ canva_design_id: string; storage_url: string | null; name: string }>) => {
     const urls = assets.map(a => a.storage_url).filter((u): u is string => !!u)
     if (!urls.length) return
-    setCanvaByDesign(m => ({ ...m, [assets[0].canva_design_id]: urls }))
+    setCanvaByDesign(m => ({ ...m, [assets[0].canva_design_id]: { name: assets[0].name, urls } }))
     urls.forEach(addBaseImage)   // entram na tira; o cap de 4 do addBaseImage segura a seleção
   }
   const dropCanva = (designId: string) => {
-    const urls = canvaByDesign[designId] ?? []
+    const urls = canvaByDesign[designId]?.urls ?? []
     setCanvaByDesign(m => { const n = { ...m }; delete n[designId]; return n })
     setUploaded(p => p.filter(u => !urls.includes(u)))
     setRefUrls(p => p.filter(u => !urls.includes(u)))
+  }
+  // Arte JÁ pronta no Canva não precisa de IA: entra direto como foto do produto
+  // (reference_images) e segue pro anúncio na hora de publicar. Sem gastar crédito.
+  const [canvaSaving, setCanvaSaving] = useState(false); const [canvaMsg, setCanvaMsg] = useState('')
+  const [canvaSaved, setCanvaSaved] = useState<string[]>([])
+  const canvaPicked = useMemo(
+    () => Object.values(canvaByDesign).flatMap(d => d.urls.map(u => ({ url: u, name: d.name }))),
+    [canvaByDesign],
+  )
+  const canvaNovas = canvaPicked.filter(p => !candidates.includes(p.url) && !canvaSaved.includes(p.url))
+  const saveCanvaToDev = async () => {
+    if (!canvaNovas.length) return
+    setCanvaSaving(true); setErr(''); setCanvaMsg('')
+    try {
+      // relê o dev antes de gravar: o PATCH manda a lista inteira e o card pode ter
+      // ganhado foto por outro caminho (IA, upload) enquanto o modal estava aberto
+      const atual = await api<{ reference_images?: ReferenceImage[] }>(`/product-os/${dev.id}`)
+      const base = atual.reference_images ?? []
+      const ja = new Set(base.map(r => r.url))
+      const add = canvaNovas.filter(p => !ja.has(p.url)).map(p => ({ url: p.url, notes: `Canva · ${p.name}` }))
+      if (add.length) await api(`/product-os/${dev.id}`, { method: 'PATCH', body: JSON.stringify({ reference_images: [...base, ...add] }) })
+      setCanvaSaved(prev => [...prev, ...canvaNovas.map(p => p.url)])
+      setCanvaMsg(add.length
+        ? `${add.length} imagem${add.length > 1 ? 'ns' : ''} do Canva no produto ✓ — vão junto quando publicar.`
+        : 'Essas imagens já estavam no produto.')
+      onSaved()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setCanvaSaving(false) }
   }
   useEffect(() => { void (async () => { try { setPalettes(await api<Palette[]>('/product-os/palettes')) } catch { /* */ } })() }, [])
   const gen = async () => {
@@ -1759,7 +1786,9 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
           {canvaOpen && (
             <div className="mb-2 rounded-lg p-2.5" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}>
               <p className="mb-2 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>
-                Escolha um design do seu Canva — <span className="text-white">as páginas dele entram na tira abaixo</span> como imagem base. Clique de novo no design para tirar.
+                Escolha um design do seu Canva (clique de novo para tirar). Depois:
+                <br />• <span className="text-white">arte já pronta</span> → <span style={{ color: '#4ade80' }}>usar como foto do produto</span>, sem IA e sem gastar crédito;
+                <br />• <span className="text-white">só de inspiração</span> → deixe na tira abaixo e gere a foto com a paleta.
               </p>
               <CanvaDesignPicker
                 pickedDesignIds={pickedDesignIds}
@@ -1767,6 +1796,16 @@ function GenerateImageModal({ dev, onClose, onSaved }: { dev: { id: string; name
                 onUnpicked={dropCanva}
                 redirectTo="/dashboard/producao/product-os"
               />
+              {canvaPicked.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => void saveCanvaToDev()} disabled={canvaSaving || canvaNovas.length === 0} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold disabled:opacity-50" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.35)' }}>
+                    {canvaSaving ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}
+                    {canvaNovas.length === 0 ? 'Já estão no produto' : `Usar ${canvaNovas.length} como foto${canvaNovas.length > 1 ? 's' : ''} do produto`}
+                  </button>
+                  <span className="text-[10px]" style={{ color: '#52525b' }}>sem IA · entra no ciclo de vida e vai pro anúncio ao publicar</span>
+                </div>
+              )}
+              {canvaMsg && <p className="mt-1.5 text-[11px]" style={{ color: '#4ade80' }}>{canvaMsg}</p>}
             </div>
           )}
           {allCandidates.length > 0 ? (useRef && (
