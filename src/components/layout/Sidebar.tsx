@@ -15,7 +15,7 @@ import {
   GraduationCap, LineChart, Shield, Users2, TrendingDown,
   Zap, Map as MapIcon, Bell, Wand2, Layers, Store, Palette, Link2, Calendar, FileText, Eye,
   RotateCcw, CreditCard, Scale, Trophy, AlertTriangle as AlertTriangleIcon, Sparkles as SparklesIcon,
-  LayoutDashboard, Tag, Wallet, Gift, Rocket, Factory,
+  LayoutDashboard, Tag, Wallet, Gift, Rocket, Factory, Puzzle,
 } from 'lucide-react'
 import { CORE_MODULES } from '@/lib/modules'
 
@@ -213,6 +213,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { labelKey: 'items.radarTendencias',     href: '/dashboard/radar-tendencias',     icon: <TrendingUp size={15} /> },
       { labelKey: 'items.radarShopee',         href: '/dashboard/radar-shopee',         icon: <Flame size={15} /> },
+      { labelKey: 'items.oportunidades3d',     href: '/dashboard/oportunidades-3d',     icon: <Puzzle size={15} /> },
       { labelKey: 'items.comprasInteligencia', href: '/dashboard/compras/inteligencia', icon: <Brain size={15} />,    badgeKey: 'compras-criticos' as BadgeKey },
       { labelKey: 'items.comprasFornecedores', href: '/dashboard/compras/fornecedores', icon: <Building2 size={15} /> },
       { labelKey: 'items.comprasImportacoes',  href: '/dashboard/compras/importacoes',  icon: <Ship size={15} /> },
