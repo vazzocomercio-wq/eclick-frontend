@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star, Archive, Image as ImageIcon,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star, Archive, Image as ImageIcon, Pencil, Lock,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 // mesmo seletor de designs do Canva que a IA Criativo usa (só reusado, não alterado)
@@ -211,6 +211,12 @@ interface PrinterAnalytics {
   by_product: Array<{ product_dev_id: string; name: string; units: number; hours: number; contribution: number; profit_per_hour: number | null }>
   recent_orders: Array<{ order_number: number; name: string; status: string; quantity: number; contribution_total: number | null; completed_at: string | null }>
 }
+
+// O nome do produto é livre pra editar enquanto ele está em desenvolvimento. A partir
+// de "aprovado" ele já virou SKU/anúncio/OP e o nome é referência de produção — aí a
+// tela trava e a mudança passa pela API (Claude), pra não desalinhar o que já saiu.
+const NAME_EDITABLE_STATUS: Status[] = ['ideia', 'briefing', 'modelagem', 'prototipo']
+const canEditName = (s: Status) => NAME_EDITABLE_STATUS.includes(s)
 
 const COLUMNS: { key: Status; label: string }[] = [
   { key: 'ideia', label: 'Ideia' }, { key: 'briefing', label: 'Briefing' }, { key: 'modelagem', label: 'Modelagem' },
@@ -2034,6 +2040,59 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
     </div>
   )
 }
+
+/** Nome do produto no topo da gaveta: editável enquanto está em desenvolvimento,
+ *  travado a partir de "aprovado" (ver NAME_EDITABLE_STATUS). */
+function DevNameHeader({ dev, onSaved }: { dev: DevDetail; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(dev.name)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const editable = canEditName(dev.status)
+
+  const open = () => { setName(dev.name); setErr(''); setEditing(true) }
+  const cancel = () => { setEditing(false); setErr('') }
+
+  const save = async () => {
+    const novo = name.trim()
+    if (!novo) { setErr('O nome não pode ficar vazio.'); return }
+    if (novo === dev.name) { cancel(); return }
+    setSaving(true); setErr('')
+    try { await api(`/product-os/${dev.id}`, { method: 'PATCH', body: JSON.stringify({ name: novo }) }); setEditing(false); onSaved() }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+    finally { setSaving(false) }
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <h2 className="min-w-0 break-words text-base font-extrabold text-white">{dev.name}</h2>
+        {editable ? (
+          <button onClick={open} title="Renomear produto" aria-label="Renomear produto" className="shrink-0 rounded p-1 hover:bg-white/5" style={{ color: '#71717a' }}><Pencil size={13} /></button>
+        ) : (
+          <span title="O nome trava depois que o produto é aprovado — a partir daí ele já virou SKU/anúncio/OP. Pra mudar, peça pro Claude." className="shrink-0 p-1" style={{ color: '#52525b' }}><Lock size={13} /></span>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5">
+        <input
+          value={name} onChange={e => setName(e.target.value)} autoFocus disabled={saving}
+          onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') cancel() }}
+          className="min-w-0 flex-1 rounded-lg px-2 py-1 text-base font-extrabold text-white outline-none disabled:opacity-50"
+          style={{ background: '#111114', border: '1px solid #27272a' }}
+        />
+        <button onClick={() => void save()} disabled={saving} title="Salvar" aria-label="Salvar nome" className="shrink-0 rounded p-1 disabled:opacity-50" style={{ color: '#4ade80' }}>{saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}</button>
+        <button onClick={cancel} disabled={saving} title="Cancelar" aria-label="Cancelar" className="shrink-0 rounded p-1 disabled:opacity-50" style={{ color: '#71717a' }}><X size={14} /></button>
+      </div>
+      {err && <p className="mt-1 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
+    </div>
+  )
+}
+
 function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [dev, setDev] = useState<DevDetail | null>(null)
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('')
@@ -2085,8 +2144,8 @@ function DetailDrawer({ id, onClose, onChanged }: { id: string; onClose: () => v
         {!dev ? <div className="flex items-center gap-2 text-sm" style={{ color: '#71717a' }}><Loader2 size={16} className="animate-spin" /> Carregando…</div> : (
           <>
             <div className="mb-3 flex items-start gap-2">
-              <div><h2 className="text-base font-extrabold text-white">{dev.name}</h2><p className="text-xs" style={{ color: '#71717a' }}>{dev.category ?? 'sem categoria'} · {dev.status}</p></div>
-              <button onClick={onClose} className="ml-auto" style={{ color: '#71717a' }}><X size={18} /></button>
+              <div className="min-w-0 flex-1"><DevNameHeader dev={dev} onSaved={() => { void reload(); onChanged() }} /><p className="text-xs" style={{ color: '#71717a' }}>{dev.category ?? 'sem categoria'} · {dev.status}</p></div>
+              <button onClick={onClose} className="ml-auto shrink-0" style={{ color: '#71717a' }}><X size={18} /></button>
             </div>
 
             {/* ações */}
