@@ -25,7 +25,7 @@ interface ReferenceImage { url: string; source_url?: string | null; notes?: stri
 interface ProductDev {
   id: string; name: string; code?: string | null; category: string | null; description: string | null; status: Status
   production_profile: 'impressao_3d' | 'marca_propria' | 'generico'
-  reference_images: ReferenceImage[]; inspiration_url: string | null
+  reference_images: ReferenceImage[]; hidden_photo_urls?: string[]; inspiration_url: string | null
   briefing: Record<string, unknown> | null; briefing_text: string | null
   target_marketplaces: string[]; target_price: number | null; estimated_cost: number | null
   product_id: string | null; active_deal_id: string | null; position: number; created_at: string
@@ -1910,9 +1910,24 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
     () => [...devPhotos, ...canvaPicks.map(p => p.url).filter(u => !devPhotos.includes(u))],
     [devPhotos, canvaPicks],
   )
+  // fotos que o lojista tirou do anúncio (× no thumb). Persistido no produto
+  // (hidden_photo_urls) — a foto CONTINUA no produto, só sai do anúncio; dá
+  // pra restaurar. Inicializa do que já estava salvo.
+  const [excluded, setExcluded] = useState<Set<string>>(() => new Set(dev.hidden_photo_urls ?? []))
+  const [showHidden, setShowHidden] = useState(false)
+  const visiblePhotos = useMemo(() => photos.filter(p => !excluded.has(p)), [photos, excluded])
+  const hiddenPhotos = useMemo(() => photos.filter(p => excluded.has(p)), [photos, excluded])
+  const toggleExcluded = (u: string) => setExcluded(prev => {
+    const next = new Set(prev)
+    if (next.has(u)) next.delete(u); else next.add(u)
+    // persiste no produto (otimista — o modal segue pelo estado local)
+    void api(`/product-os/${devId}`, { method: 'PATCH', body: JSON.stringify({ hidden_photo_urls: [...next] }) }).catch(() => {})
+    return next
+  })
   const [cover, setCover] = useState('')
-  // preserva a capa escolhida quando chegam fotos novas — só reposiciona se ela sumir
-  useEffect(() => { setCover(c => (c && photos.includes(c) ? c : photos[0] ?? '')) }, [photos])
+  // preserva a capa escolhida quando chegam fotos novas — só reposiciona se ela
+  // sumir OU for ocultada (capa sempre sai das fotos visíveis)
+  useEffect(() => { setCover(c => (c && visiblePhotos.includes(c) ? c : visiblePhotos[0] ?? '')) }, [visiblePhotos])
   useEffect(() => { void (async () => {
     try {
       const d = await api<SkuData>(`/product-os/${devId}/sku`); setSku(d)
@@ -1929,12 +1944,13 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
   const baseSet = !!sku?.base
   const fichaFilled = !!(dev.catalog_title || dev.catalog_description)
   const setRow = (id: string, field: 'price' | 'stock', val: string) => setRows(r => ({ ...r, [id]: { ...(r[id] ?? { price: '', stock: '0' }), [field]: val } }))
-  const orderedPhotos = cover ? [cover, ...photos.filter(p => p !== cover)] : photos
+  const orderedPhotos = cover ? [cover, ...visiblePhotos.filter(p => p !== cover)] : visiblePhotos
   const publish = async () => {
     setBusy(true); setErr('')
     try {
-      // o que veio do Canva vira referência do PRODUTO (fica no card, não só neste anúncio)
-      const novas = canvaPicks.filter(p => !devPhotos.includes(p.url)).map(p => ({ url: p.url, notes: `Canva · ${p.name}` }))
+      // o que veio do Canva vira referência do PRODUTO (fica no card, não só neste
+      // anúncio) — exceto o que foi ocultado com o ×
+      const novas = canvaPicks.filter(p => !devPhotos.includes(p.url) && !excluded.has(p.url)).map(p => ({ url: p.url, notes: `Canva · ${p.name}` }))
       if (novas.length) await api(`/product-os/${devId}`, { method: 'PATCH', body: JSON.stringify({ reference_images: [...(dev.reference_images ?? []), ...novas] }) })
       const base = orderedPhotos.length ? { photo_urls: orderedPhotos } : {}
       const body = mode === 'variable'
@@ -1995,20 +2011,45 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
             <div className="mt-3">
               <div className="mb-1 flex items-center gap-2">
                 <p className="text-[10px] font-semibold uppercase" style={{ color: '#71717a' }}>
-                  Fotos do anúncio{photos.length > 0 ? ' · clique para definir a capa' : ''} ({photos.length})
+                  Fotos do anúncio{visiblePhotos.length > 0 ? ' · clique p/ capa, × p/ tirar' : ''} ({visiblePhotos.length})
                 </p>
                 <button onClick={() => setCanvaOpen(o => !o)} className="ml-auto flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold" style={{ background: canvaOpen ? 'rgba(125,42,231,0.18)' : '#111114', color: '#c8a8ff', border: '1px solid rgba(125,42,231,0.45)' }}>
                   <Palette size={10} /> {canvaOpen ? 'fechar Canva' : 'adicionar do Canva'}
                 </button>
               </div>
-              {photos.length > 0 && (
+              {visiblePhotos.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {orderedPhotos.map((u, i) => (
-                    <button key={u} onClick={() => setCover(u)} className="relative h-14 w-14 overflow-hidden rounded-lg" style={{ border: i === 0 ? '2px solid #4ade80' : '1px solid #27272a' }}>
-                      <img src={u} alt="foto" className="h-full w-full object-cover" />
-                      {i === 0 && <span className="absolute bottom-0 left-0 right-0 text-center text-[8px] font-bold" style={{ background: 'rgba(74,222,128,0.85)', color: '#0a0a0e' }}>capa</span>}
-                    </button>
+                    <div key={u} className="relative h-14 w-14 shrink-0">
+                      <button onClick={() => setCover(u)} title="Usar como capa" className="h-full w-full overflow-hidden rounded-lg" style={{ border: i === 0 ? '2px solid #4ade80' : '1px solid #27272a' }}>
+                        <img src={u} alt="foto" className="h-full w-full object-cover" />
+                        {i === 0 && <span className="absolute bottom-0 left-0 right-0 text-center text-[8px] font-bold" style={{ background: 'rgba(74,222,128,0.85)', color: '#0a0a0e' }}>capa</span>}
+                      </button>
+                      <button onClick={() => toggleExcluded(u)} title="Tirar do anúncio" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full" style={{ background: '#18181b', border: '1px solid #3f3f46', color: '#f87171' }}>
+                        <X size={10} />
+                      </button>
+                    </div>
                   ))}
+                </div>
+              )}
+              {visiblePhotos.length === 0 && photos.length > 0 && (
+                <p className="text-[10px]" style={{ color: '#fcd34d' }}>Todas as fotos foram tiradas — o anúncio iria sem imagem. Restaure ao menos uma abaixo.</p>
+              )}
+              {hiddenPhotos.length > 0 && (
+                <div className="mt-1.5">
+                  <button onClick={() => setShowHidden(s => !s)} className="text-[10px] font-semibold" style={{ color: '#71717a' }}>
+                    {showHidden ? 'ocultar' : 'mostrar'} {hiddenPhotos.length} foto{hiddenPhotos.length > 1 ? 's' : ''} tirada{hiddenPhotos.length > 1 ? 's' : ''} do anúncio
+                  </button>
+                  {showHidden && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {hiddenPhotos.map(u => (
+                        <button key={u} onClick={() => toggleExcluded(u)} title="Restaurar no anúncio" className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg" style={{ border: '1px solid #27272a', opacity: 0.45 }}>
+                          <img src={u} alt="foto tirada" className="h-full w-full object-cover" />
+                          <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold" style={{ background: 'rgba(10,10,14,0.55)', color: '#a5f3fc' }}>restaurar</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {canvaOpen && (
@@ -2032,7 +2073,7 @@ function PublishModal({ dev, onClose, onDone }: { dev: DevDetail; onClose: () =>
             {err && <p className="mt-2 text-[11px]" style={{ color: '#f87171' }}>{err}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: '#111114', color: '#a1a1aa', border: '1px solid #27272a' }}>Cancelar</button>
-              <button onClick={() => void publish()} disabled={busy || !linhaSet || !baseSet} title={!linhaSet ? 'Defina a linha de produtos antes de publicar' : !baseSet ? 'Complete a classificação do SKU antes de publicar' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#4ade80', color: '#0a0a0e' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Publicar</button>
+              <button onClick={() => void publish()} disabled={busy || !linhaSet || !baseSet || (photos.length > 0 && visiblePhotos.length === 0)} title={!linhaSet ? 'Defina a linha de produtos antes de publicar' : !baseSet ? 'Complete a classificação do SKU antes de publicar' : (photos.length > 0 && visiblePhotos.length === 0) ? 'Restaure ao menos uma foto' : ''} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#4ade80', color: '#0a0a0e' }}>{busy ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} Publicar</button>
             </div>
           </>
         )}
