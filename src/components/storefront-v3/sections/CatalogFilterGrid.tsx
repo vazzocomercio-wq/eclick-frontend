@@ -46,6 +46,22 @@ export function CatalogFilterGrid({ ctx, products, columns, cardStyle }: {
     return () => { cancelled = true }
   }, [ctx.slug])
 
+  // Pré-seleção via URL (?col= / ?cat= / ?categoria=) — usado pelos tiles de
+  // categoria e pelos links do menu. Aditivo: só pré-seleciona se o valor casar
+  // com um grupo (id/nome) ou uma subcategoria (id/nome); senão fica em "Todas".
+  useEffect(() => {
+    if (groups.length === 0 || typeof window === 'undefined') return
+    const sp = new URLSearchParams(window.location.search)
+    const raw = sp.get('col') ?? sp.get('cat') ?? sp.get('categoria')
+    if (!raw) return
+    const norm = (s: string) => s.trim().toLowerCase()
+    const t = norm(raw)
+    const g = groups.find(x =>
+      x.id === raw || norm(x.name) === t ||
+      x.children.some(c => c.id === raw || norm(c.name) === t))
+    if (g) setSelected(g.id)
+  }, [groups])
+
   // Conjunto de category_ml_id que pertencem ao grupo selecionado (folhas + o próprio top)
   const selectedMlIds = useMemo(() => {
     if (!selected) return null
