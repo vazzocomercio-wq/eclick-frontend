@@ -507,11 +507,14 @@ type FilterKey = 'all' | 'zero' | 'critical' | 'low' | 'ok'
 type SortKey = 'name' | 'qty' | 'platformQty' | 'alert' | 'minStock'
 
 // ── Regra CENTRAL de estoque virtual (todos os canais) ─────────────────────
-// Define UMA regra (físico + N virtual, pausa quando o físico zera) e aplica a
-// TODOS os produtos com anúncio vinculado, em todos os canais (ML/Shopee/TikTok).
+// Define UMA regra (físico + N virtual, pausa quando o físico chega no mínimo)
+// e aplica a TODOS os produtos com anúncio vinculado, em todos os canais
+// (ML/Shopee/TikTok). O mínimo é em unidades de estoque FÍSICO — 0 = pausa
+// quando o físico zerar.
 function VirtualRuleCard({ onApplied }: { onApplied: () => void }) {
   const [open, setOpen]     = useState(false)
   const [units, setUnits]   = useState('1000')
+  const [minFis, setMinFis] = useState('0')
   const [confirm, setConfirm] = useState<'apply' | 'clear' | null>(null)
   const [busy, setBusy]     = useState(false)
   const [msg, setMsg]       = useState<string | null>(null)
@@ -524,13 +527,16 @@ function VirtualRuleCard({ onApplied }: { onApplied: () => void }) {
       const res = await fetch(`${BACKEND}/stock/virtual-rule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(clear ? { clear: true } : { virtual_units: Number(units) }),
+        body: JSON.stringify(clear
+          ? { clear: true }
+          : { virtual_units: Number(units), min_fisico: Number(minFis) || 0 }),
       })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(j.message ?? `HTTP ${res.status}`)
+      const min = Number(minFis) || 0
       setMsg(clear
         ? `Regra removida de ${j.products} produto(s). Voltando ao estoque clássico.`
-        : `Regra aplicada a ${j.products} produto(s): físico + ${Number(units)} virtual, pausa quando o físico zerar. Propagando pros canais…`)
+        : `Regra aplicada a ${j.products} produto(s): físico + ${Number(units)} virtual, pausa quando o físico ${min > 0 ? `chegar em ${min}` : 'zerar'}. Propagando pros canais…`)
       setConfirm(null)
       onApplied()
     } catch (e) { setErr((e as Error).message) }
@@ -543,7 +549,7 @@ function VirtualRuleCard({ onApplied }: { onApplied: () => void }) {
         <Layers size={16} className="text-cyan-400" />
         <div className="text-left">
           <p className="text-sm font-semibold text-zinc-200">Regra central de estoque virtual</p>
-          <p className="text-[11px] text-zinc-500">Aplica a mesma regra (físico + virtual, pausa no físico-zero) a todos os anúncios de todos os canais</p>
+          <p className="text-[11px] text-zinc-500">Aplica a mesma regra (físico + virtual, pausa quando o físico chega no mínimo) a todos os anúncios de todos os canais</p>
         </div>
         {open ? <ChevronUp size={16} className="ml-auto text-zinc-500" /> : <ChevronDown size={16} className="ml-auto text-zinc-500" />}
       </button>
@@ -557,8 +563,14 @@ function VirtualRuleCard({ onApplied }: { onApplied: () => void }) {
                 className="w-32 mt-1 px-2 py-1.5 rounded-lg text-sm text-zinc-200 tabular-nums"
                 style={{ background: '#0d0d10', border: '1px solid #27272a', outline: 'none' }} />
             </label>
+            <label className="block">
+              <span className="text-[10px] uppercase tracking-wider text-zinc-600 flex items-center gap-1"><Boxes size={11} /> Pausar quando o físico chegar em</span>
+              <input type="number" min={0} value={minFis} onChange={e => setMinFis(e.target.value)}
+                className="w-32 mt-1 px-2 py-1.5 rounded-lg text-sm text-zinc-200 tabular-nums"
+                style={{ background: '#0d0d10', border: '1px solid #27272a', outline: 'none' }} />
+            </label>
             <p className="text-[11px] text-zinc-500 flex-1 min-w-[200px]">
-              Cada anúncio passa a exibir <b className="text-zinc-300">físico + {Number(units) || 0}</b>, e <b className="text-zinc-300">pausa automaticamente quando o estoque físico zerar</b>. Vale pra ML, Shopee e TikTok.
+              Cada anúncio passa a exibir <b className="text-zinc-300">físico + {Number(units) || 0}</b>, e <b className="text-zinc-300">pausa automaticamente quando o estoque físico {(Number(minFis) || 0) > 0 ? <>chegar em {Number(minFis)}</> : 'zerar'}</b>. O mínimo conta só o estoque REAL — o virtual não entra. Vale pra ML, Shopee e TikTok.
             </p>
           </div>
 

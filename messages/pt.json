@@ -884,7 +884,7 @@
       },
       "stock": {
         "tooltipVirtual": "Quantidade adicional exibida nas plataformas além do estoque físico real. Útil para Shopee Flash Sale e campanhas que exigem estoque mínimo alto para elegibilidade.",
-        "tooltipMinPause": "Quando (físico + virtual) atingir este valor, o anúncio é pausado automaticamente. Exemplo: físico=5, virtual=1.000, mínimo=1.000 → pausa quando o físico zerar (total cai de 1.005 para 1.000).",
+        "tooltipMinPause": "Quando o estoque FÍSICO (o real, já descontando o reservado) chegar neste valor, o anúncio é pausado automaticamente. O estoque virtual não entra nesta conta. Exemplo: mínimo=3 → pausa assim que restarem 3 unidades. Mínimo=0 → pausa quando o físico zerar.",
         "title": "Estoque",
         "stockHttpError": "Estoque: HTTP {status}",
         "bufferHttpError": "Buffer: HTTP {status}",
