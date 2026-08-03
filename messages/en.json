@@ -713,7 +713,7 @@
       },
       "stock": {
         "tooltipVirtual": "Extra quantity shown on the platforms beyond the real physical stock. Useful for Shopee Flash Sale and campaigns that require a high minimum stock to qualify.",
-        "tooltipMinPause": "When (physical + virtual) reaches this value, the listing is paused automatically. Example: physical=5, virtual=1,000, minimum=1,000 → pauses when physical hits zero (total drops from 1,005 to 1,000).",
+        "tooltipMinPause": "When PHYSICAL stock (the real one, minus reserved units) reaches this value, the listing is paused automatically. Virtual stock is not part of this check. Example: minimum=3 → pauses as soon as 3 units are left. Minimum=0 → pauses when physical hits zero.",
         "title": "Stock",
         "stockHttpError": "Stock: HTTP {status}",
         "bufferHttpError": "Buffer: HTTP {status}",
