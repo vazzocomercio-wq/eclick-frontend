@@ -13696,5 +13696,222 @@
       "convPending": "Conversões pendentes",
       "attributionNote": "Atribuição fina conversão↔match liga via sub_id quando o ingestion real (F2.2) conectar."
     }
+  },
+  "mlReputation": {
+    "title": "Reputação das contas",
+    "eyebrow": "Mercado Livre",
+    "subtitle": "Central de prevenção — descubra o problema antes de perder reputação",
+    "loading": "Carregando…",
+    "neverCalculated": "ainda não calculado",
+    "timeNow": "agora",
+    "timeMinutesAgo": "há {m} min",
+    "timeHoursAgo": "há {h} h",
+    "timeDaysAgo": "há {d} d",
+    "updatedAt": "Última atualização: {when}",
+    "refresh": "Atualizar",
+    "refreshing": "Atualizando…",
+    "rulesButton": "Entenda as regras",
+    "simToggle": "Simulação das regras de {date}",
+    "simActiveBanner": "Você está vendo a simulação das regras que entram em vigor em {date}. A regra vigente hoje é {name}.",
+    "ruleActiveLabel": "Regra vigente: {name}",
+    "ruleUpcomingLabel": "Nova metodologia válida a partir de {date}.",
+    "pendingBanner": "Primeiro cálculo em andamento para {n} conta(s) — a tela atualiza sozinha.",
+    "kpi": {
+      "total": "Contas ML",
+      "healthy": "Saudáveis",
+      "attention": "Em atenção",
+      "critical": "Críticas",
+      "nearSwitch": "Perto de mudar de período",
+      "worsened": "Pioraram recentemente",
+      "pending": "Calculando"
+    },
+    "level": {
+      "green": "Verde",
+      "yellow": "Amarelo",
+      "orange": "Laranja",
+      "red": "Vermelho",
+      "unknown": "Sem dado"
+    },
+    "risk": {
+      "safe": "Seguro",
+      "attention": "Atenção",
+      "high": "Risco alto",
+      "critical": "Crítico",
+      "unknown": "Sem dado"
+    },
+    "metric": {
+      "cancellations": "Canceladas por você",
+      "incorrectShipments": "Envios incorretos",
+      "claims": "Reclamações"
+    },
+    "metricShort": {
+      "cancellations": "Cancelamentos",
+      "incorrectShipments": "Envios",
+      "claims": "Reclamações"
+    },
+    "period": {
+      "title": "Período de medição",
+      "days": "{days} dias",
+      "sales60": "Vendas 60 dias",
+      "sales365": "Vendas 365 dias",
+      "considered": "Vendas consideradas (denominador)",
+      "salesLine365": "{sales} vendas nos últimos 60 dias → avaliação em 365 dias",
+      "tooltip60": "Esta conta teve {threshold} ou mais vendas concluídas nos últimos {short} dias. Por isso, sua reputação é calculada considerando os últimos {short} dias.",
+      "tooltip365": "Esta conta teve menos de {threshold} vendas concluídas nos últimos {short} dias. Por isso, sua reputação é calculada considerando os últimos {long} dias.",
+      "missing": "Faltam {n} vendas para entrar na avaliação de {short} dias",
+      "progress": "{sales} / {threshold} vendas",
+      "inShort": "Esta conta está sendo avaliada pelos últimos {short} dias.",
+      "mayDrop": "Atenção: se não houver novas vendas, esta conta poderá voltar para a avaliação de {long} dias em aproximadamente {days} dia(s) — {exits} venda(s) saem da janela nos próximos {horizon} dias.",
+      "stable": "Nos próximos {horizon} dias, {exits} venda(s) saem da janela — sem previsão de troca de período se o ritmo de vendas se mantiver."
+    },
+    "card": {
+      "ofSales": "{affected} de {total} vendas",
+      "limitCurrent": "Limite {level}: até {limit}",
+      "margin": "Margem disponível: {pp}",
+      "exceeded": "Acima do limite laranja ({limit}) — faixa vermelha",
+      "remainingStatic": "Ainda cabem aproximadamente {n} ocorrência(s) antes de passar para {level}, mantendo o volume atual de vendas (cenário estático).",
+      "remainingDynamic": "Se cada nova ocorrência também for uma venda nova: aproximadamente {n} ocorrência(s) (cenário dinâmico).",
+      "remainingZero": "Qualquer nova ocorrência muda a faixa para {level}.",
+      "recover": "São necessárias aproximadamente {n} novas vendas sem novas ocorrências para retornar à faixa verde.",
+      "estimateNote": "Estimativas com base nas vendas sincronizadas; novas vendas também aumentam o denominador.",
+      "official": "Mercado Livre (oficial): {pct} · {count} ocorrências · {period}",
+      "officialMissing": "Mercado Livre (oficial): sem dado",
+      "divergence": "Há uma divergência entre o cálculo local e a informação mais recente do Mercado Livre ({delta} p.p.).",
+      "noSales": "Sem vendas no período — indicador não calculado.",
+      "nearestLimit": "Mais próximo do limite"
+    },
+    "table": {
+      "account": "Conta",
+      "sales60": "Vendas 60d",
+      "sales365": "Vendas 365d",
+      "period": "Período",
+      "risk": "Risco",
+      "details": "Detalhes",
+      "pending": "Calculando…",
+      "error": "Erro no cálculo",
+      "accountFallback": "Conta {id}",
+      "id": "ID {id}"
+    },
+    "attention": {
+      "title": "Contas que precisam de atenção",
+      "empty": "Nenhuma conta precisa de atenção agora — todas estão na faixa verde com margem confortável.",
+      "line": "{metric}: {pct} / limite {level} {limit}",
+      "margin": "Margem: {pp}"
+    },
+    "filters": {
+      "status": "Faixa",
+      "period": "Período",
+      "flag": "Situação",
+      "sort": "Ordenar",
+      "search": "Buscar por nickname ou ID…",
+      "all": "Todas",
+      "near68": "Próximas de {threshold} vendas",
+      "withAlerts": "Com alertas",
+      "sortRisk": "Maior risco",
+      "sortWorst": "Pior reputação",
+      "sortSalesDesc": "Mais vendas",
+      "sortSalesAsc": "Menos vendas",
+      "sortNear68": "Mais perto de {threshold} vendas",
+      "sortCancel": "Maior índice de cancelamentos",
+      "sortClaims": "Maior índice de reclamações",
+      "sortShip": "Maior índice de envios incorretos",
+      "noResults": "Nenhuma conta corresponde aos filtros."
+    },
+    "empty": {
+      "title": "Nenhuma conta Mercado Livre conectada",
+      "desc": "Conecte uma conta em Configurações › Integrações para acompanhar a reputação.",
+      "cta": "Conectar conta"
+    },
+    "rules": {
+      "title": "Entenda as regras",
+      "close": "Fechar",
+      "status": "Status",
+      "col60": "60 dias",
+      "col365": "365 dias",
+      "colPct": "Percentual",
+      "upTo": "≤ {v}",
+      "between": "> {a} até {b}",
+      "above": "> {v}",
+      "effective": "Nova metodologia válida a partir de {date}.",
+      "periodRule": "Período de medição: {threshold} ou mais vendas concluídas nos últimos {short} dias → avaliação em {short} dias; menos de {threshold} → {long} dias. Janela móvel, recalculada automaticamente.",
+      "legacyNote": "Antes de {date} vale a regra anterior ({name}).",
+      "riskRule": "Risco preventivo: Atenção a partir de {attention}% da margem da faixa atual, Risco alto a partir de {high}%, Crítico a partir de {critical}% ou ao ultrapassar o limite.",
+      "claimsNote": "Reclamações usam os mesmos limites nos dois períodos; numerador e denominador seguem o período aplicado à conta."
+    },
+    "detail": {
+      "back": "Voltar para todas as contas",
+      "officialTitle": "Mercado Livre (oficial)",
+      "officialDesc": "Dados recebidos diretamente da API do Mercado Livre",
+      "officialSynced": "sincronizado {when}",
+      "officialNone": "Sem leitura oficial ainda — clique em Atualizar.",
+      "internalTitle": "Monitoramento interno (SaaS)",
+      "internalDesc": "Indicadores calculados pelo e-Click com base nos pedidos, reclamações e envios sincronizados. Não substitui a reputação oficial.",
+      "overallLevel": "Pior faixa",
+      "risk": "Risco preventivo",
+      "level": {
+        "5_green": "Mercado Líder Platinum",
+        "4_light_green": "Mercado Líder Gold",
+        "3_yellow": "Mercado Líder",
+        "2_orange": "Sem nível (laranja)",
+        "1_red": "Reputação vermelha",
+        "0_red": "Sem reputação",
+        "unknown": "Sem dado"
+      },
+      "transactions": "{completed} concluídas · {total} total (histórico)",
+      "warningsTitle": "Avisos sobre a cobertura dos dados",
+      "divergenceTitle": "Divergência entre cálculo local e Mercado Livre",
+      "divergenceDesc": "Os valores foram registrados para diagnóstico. Prefira o dado oficial até a sincronização completar.",
+      "historyTitle": "Histórico",
+      "historyEmpty": "Sem histórico ainda — o primeiro ponto entra no próximo cálculo.",
+      "historyLocal": "calculado",
+      "historyOfficial": "oficial ML",
+      "range": "{days}d",
+      "eventsTitle": "Eventos recentes",
+      "eventsEmpty": "Nenhum evento registrado."
+    },
+    "warnings": {
+      "orders_partial_coverage": "O histórico de pedidos sincronizado não cobre toda a janela — o denominador pode estar subestimado.",
+      "claims_no_data": "Nenhuma reclamação sincronizada ainda (o webhook de reclamações alimenta este indicador).",
+      "claims_partial_coverage": "Reclamações sincronizadas só a partir de {since} — cobertura parcial da janela.",
+      "shipping_no_data": "Nenhum atraso de envio sincronizado ainda (o scanner de logística alimenta este indicador).",
+      "shipping_partial_coverage": "Atrasos de envio sincronizados só a partir de {since} — cobertura parcial.",
+      "cancel_detail_partial": "{with} de {total} pedidos cancelados têm o responsável identificado — os demais não entram em \"canceladas por você\"."
+    },
+    "events": {
+      "level_changed": "{metric}: {from} → {to}",
+      "period_changed": "Período de medição: {from} → {to} dias",
+      "near_limit": "{metric} próximo do limite ({to})",
+      "back_to_safe": "{metric} voltou a uma margem segura"
+    },
+    "sim": {
+      "title": "Simulador (só visual)",
+      "desc": "Projete o impacto de novas ocorrências ou de novas vendas. Nada é gravado.",
+      "cancellations": "+ cancelamentos",
+      "incorrectShipments": "+ envios incorretos",
+      "claims": "+ reclamações",
+      "sales": "+ vendas sem problema",
+      "addSales": "Cada ocorrência também conta como venda nova",
+      "run": "Simular",
+      "running": "Simulando…",
+      "reset": "Limpar",
+      "result": "Projeção",
+      "from": "de {pct}",
+      "levelChange": "{from} → {to}",
+      "same": "mantém {level}",
+      "periodNote": "Período projetado: {days} dias"
+    },
+    "audit": {
+      "title": "Auditoria do cálculo",
+      "calculatedAt": "Calculado em {when}",
+      "dataAsOf": "Janela fechada em {when}",
+      "rule": "Regra: {name}",
+      "period": "Período: {days} dias",
+      "sales": "Vendas consideradas: {n}",
+      "counts": "Ocorrências: {c} cancelamentos · {s} envios · {q} reclamações"
+    },
+    "a11y": {
+      "level": "Faixa {level}",
+      "position": "Posição atual: {pct}"
+    }
   }
 }

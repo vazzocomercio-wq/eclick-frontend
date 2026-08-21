@@ -13487,5 +13487,222 @@
       "convPending": "Pending conversions",
       "attributionNote": "Fine conversion↔match attribution links via sub_id once real ingestion (F2.2) connects."
     }
+  },
+  "mlReputation": {
+    "title": "Account reputation",
+    "eyebrow": "Mercado Livre",
+    "subtitle": "Prevention center — find the problem before you lose reputation",
+    "loading": "Loading…",
+    "neverCalculated": "not calculated yet",
+    "timeNow": "now",
+    "timeMinutesAgo": "{m} min ago",
+    "timeHoursAgo": "{h} h ago",
+    "timeDaysAgo": "{d} d ago",
+    "updatedAt": "Last update: {when}",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "rulesButton": "Understand the rules",
+    "simToggle": "Simulate the {date} rules",
+    "simActiveBanner": "You are viewing a simulation of the rules effective on {date}. The rule in force today is {name}.",
+    "ruleActiveLabel": "Rule in force: {name}",
+    "ruleUpcomingLabel": "New methodology effective from {date}.",
+    "pendingBanner": "First calculation running for {n} account(s) — this page refreshes on its own.",
+    "kpi": {
+      "total": "ML accounts",
+      "healthy": "Healthy",
+      "attention": "Attention",
+      "critical": "Critical",
+      "nearSwitch": "Close to switching period",
+      "worsened": "Worsened recently",
+      "pending": "Calculating"
+    },
+    "level": {
+      "green": "Green",
+      "yellow": "Yellow",
+      "orange": "Orange",
+      "red": "Red",
+      "unknown": "No data"
+    },
+    "risk": {
+      "safe": "Safe",
+      "attention": "Attention",
+      "high": "High risk",
+      "critical": "Critical",
+      "unknown": "No data"
+    },
+    "metric": {
+      "cancellations": "Cancelled by you",
+      "incorrectShipments": "Incorrect shipments",
+      "claims": "Claims"
+    },
+    "metricShort": {
+      "cancellations": "Cancellations",
+      "incorrectShipments": "Shipments",
+      "claims": "Claims"
+    },
+    "period": {
+      "title": "Measurement period",
+      "days": "{days} days",
+      "sales60": "Sales 60 days",
+      "sales365": "Sales 365 days",
+      "considered": "Sales considered (denominator)",
+      "salesLine365": "{sales} sales in the last 60 days → evaluated over 365 days",
+      "tooltip60": "This account had {threshold} or more completed sales in the last {short} days, so its reputation is calculated over the last {short} days.",
+      "tooltip365": "This account had fewer than {threshold} completed sales in the last {short} days, so its reputation is calculated over the last {long} days.",
+      "missing": "{n} sales to go before the {short}-day evaluation",
+      "progress": "{sales} / {threshold} sales",
+      "inShort": "This account is being evaluated over the last {short} days.",
+      "mayDrop": "Heads up: with no new sales, this account may fall back to the {long}-day evaluation in about {days} day(s) — {exits} sale(s) leave the window in the next {horizon} days.",
+      "stable": "In the next {horizon} days, {exits} sale(s) leave the window — no period switch expected if the sales pace holds."
+    },
+    "card": {
+      "ofSales": "{affected} of {total} sales",
+      "limitCurrent": "{level} limit: up to {limit}",
+      "margin": "Available margin: {pp}",
+      "exceeded": "Above the orange limit ({limit}) — red band",
+      "remainingStatic": "Roughly {n} more occurrence(s) fit before moving to {level}, keeping the current sales volume (static scenario).",
+      "remainingDynamic": "If each new occurrence is also a new sale: roughly {n} occurrence(s) (dynamic scenario).",
+      "remainingZero": "Any new occurrence moves the band to {level}.",
+      "recover": "About {n} new sales without new occurrences are needed to return to the green band.",
+      "estimateNote": "Estimates based on synced sales; new sales also increase the denominator.",
+      "official": "Mercado Livre (official): {pct} · {count} occurrences · {period}",
+      "officialMissing": "Mercado Livre (official): no data",
+      "divergence": "The local calculation diverges from the latest Mercado Livre figure ({delta} p.p.).",
+      "noSales": "No sales in the period — indicator not calculated.",
+      "nearestLimit": "Closest to the limit"
+    },
+    "table": {
+      "account": "Account",
+      "sales60": "Sales 60d",
+      "sales365": "Sales 365d",
+      "period": "Period",
+      "risk": "Risk",
+      "details": "Details",
+      "pending": "Calculating…",
+      "error": "Calculation error",
+      "accountFallback": "Account {id}",
+      "id": "ID {id}"
+    },
+    "attention": {
+      "title": "Accounts that need attention",
+      "empty": "No account needs attention right now — all are green with comfortable margin.",
+      "line": "{metric}: {pct} / {level} limit {limit}",
+      "margin": "Margin: {pp}"
+    },
+    "filters": {
+      "status": "Band",
+      "period": "Period",
+      "flag": "Situation",
+      "sort": "Sort",
+      "search": "Search by nickname or ID…",
+      "all": "All",
+      "near68": "Close to {threshold} sales",
+      "withAlerts": "With alerts",
+      "sortRisk": "Highest risk",
+      "sortWorst": "Worst reputation",
+      "sortSalesDesc": "Most sales",
+      "sortSalesAsc": "Fewest sales",
+      "sortNear68": "Closest to {threshold} sales",
+      "sortCancel": "Highest cancellation rate",
+      "sortClaims": "Highest claim rate",
+      "sortShip": "Highest incorrect-shipment rate",
+      "noResults": "No account matches the filters."
+    },
+    "empty": {
+      "title": "No Mercado Livre account connected",
+      "desc": "Connect an account in Settings › Integrations to track reputation.",
+      "cta": "Connect account"
+    },
+    "rules": {
+      "title": "Understand the rules",
+      "close": "Close",
+      "status": "Status",
+      "col60": "60 days",
+      "col365": "365 days",
+      "colPct": "Percentage",
+      "upTo": "≤ {v}",
+      "between": "> {a} up to {b}",
+      "above": "> {v}",
+      "effective": "New methodology effective from {date}.",
+      "periodRule": "Measurement period: {threshold} or more completed sales in the last {short} days → {short}-day evaluation; fewer than {threshold} → {long} days. Rolling window, recalculated automatically.",
+      "legacyNote": "Before {date} the previous rule applies ({name}).",
+      "riskRule": "Preventive risk: Attention from {attention}% of the current band margin, High risk from {high}%, Critical from {critical}% or when the limit is exceeded.",
+      "claimsNote": "Claims use the same limits in both periods; numerator and denominator follow the period applied to the account."
+    },
+    "detail": {
+      "back": "Back to all accounts",
+      "officialTitle": "Mercado Livre (official)",
+      "officialDesc": "Data received directly from the Mercado Livre API",
+      "officialSynced": "synced {when}",
+      "officialNone": "No official reading yet — click Refresh.",
+      "internalTitle": "Internal monitoring (SaaS)",
+      "internalDesc": "Indicators calculated by e-Click from synced orders, claims and shipments. Does not replace the official reputation.",
+      "overallLevel": "Worst band",
+      "risk": "Preventive risk",
+      "level": {
+        "5_green": "Mercado Líder Platinum",
+        "4_light_green": "Mercado Líder Gold",
+        "3_yellow": "Mercado Líder",
+        "2_orange": "No level (orange)",
+        "1_red": "Red reputation",
+        "0_red": "No reputation",
+        "unknown": "No data"
+      },
+      "transactions": "{completed} completed · {total} total (historic)",
+      "warningsTitle": "Data coverage notices",
+      "divergenceTitle": "Divergence between local calculation and Mercado Livre",
+      "divergenceDesc": "The values were logged for diagnosis. Prefer the official figure until the sync completes.",
+      "historyTitle": "History",
+      "historyEmpty": "No history yet — the first point arrives with the next calculation.",
+      "historyLocal": "calculated",
+      "historyOfficial": "official ML",
+      "range": "{days}d",
+      "eventsTitle": "Recent events",
+      "eventsEmpty": "No events recorded."
+    },
+    "warnings": {
+      "orders_partial_coverage": "The synced order history does not cover the whole window — the denominator may be underestimated.",
+      "claims_no_data": "No claims synced yet (the claims webhook feeds this indicator).",
+      "claims_partial_coverage": "Claims synced only since {since} — partial window coverage.",
+      "shipping_no_data": "No shipping delays synced yet (the logistics scanner feeds this indicator).",
+      "shipping_partial_coverage": "Shipping delays synced only since {since} — partial coverage.",
+      "cancel_detail_partial": "{with} of {total} cancelled orders have the responsible party identified — the rest are not counted as \"cancelled by you\"."
+    },
+    "events": {
+      "level_changed": "{metric}: {from} → {to}",
+      "period_changed": "Measurement period: {from} → {to} days",
+      "near_limit": "{metric} close to the limit ({to})",
+      "back_to_safe": "{metric} is back to a safe margin"
+    },
+    "sim": {
+      "title": "Simulator (visual only)",
+      "desc": "Project the impact of new occurrences or new sales. Nothing is saved.",
+      "cancellations": "+ cancellations",
+      "incorrectShipments": "+ incorrect shipments",
+      "claims": "+ claims",
+      "sales": "+ clean sales",
+      "addSales": "Each occurrence also counts as a new sale",
+      "run": "Simulate",
+      "running": "Simulating…",
+      "reset": "Clear",
+      "result": "Projection",
+      "from": "from {pct}",
+      "levelChange": "{from} → {to}",
+      "same": "stays {level}",
+      "periodNote": "Projected period: {days} days"
+    },
+    "audit": {
+      "title": "Calculation audit",
+      "calculatedAt": "Calculated at {when}",
+      "dataAsOf": "Window closed at {when}",
+      "rule": "Rule: {name}",
+      "period": "Period: {days} days",
+      "sales": "Sales considered: {n}",
+      "counts": "Occurrences: {c} cancellations · {s} shipments · {q} claims"
+    },
+    "a11y": {
+      "level": "Band {level}",
+      "position": "Current position: {pct}"
+    }
   }
 }

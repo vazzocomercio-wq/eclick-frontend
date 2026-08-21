@@ -1,516 +1,359 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import { createClient } from '@/lib/supabase'
 import {
-  RefreshCw, ShieldCheck, AlertTriangle, AlertCircle, TrendingDown, TrendingUp,
-  Minus, Award, Activity,
+  Activity, AlertTriangle, ArrowRight, BookOpen, CheckCircle2, Clock, Loader2, RefreshCw, Search,
+  ShieldAlert, ShieldCheck, TrendingDown, Users, FlaskConical,
 } from 'lucide-react'
+import { fetchDashboard, fetchEvents, recalcAll } from './_components/api'
+import type { AccountView, DashboardView, LevelOrUnknown, MetricKey, ReputationResult } from './_components/types'
+import {
+  CARD, LEVEL_STYLE, LevelBadge, MetricCell, PeriodChip, ProgressToShort, RiskBadge, RulesModal,
+  accountName, attentionScore, fmtDateBr, fmtInt, fmtPct, fmtPp, levelRank, riskRank, tightestMetric, timeSince,
+  useGentlePolling, useReputationRealtime, type Translator,
+} from './_components/ui'
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
+type StatusFilter = 'all' | LevelOrUnknown
+type PeriodFilter = 'all' | 'short' | 'long'
+type FlagFilter   = 'all' | 'near68' | 'alerts'
+type SortKey      = 'risk' | 'worst' | 'salesDesc' | 'salesAsc' | 'near68' | 'cancellations' | 'claims' | 'incorrectShipments'
 
-type Trend = 'improving' | 'stable' | 'degrading' | 'unknown'
-
-interface ReputationCurrent {
-  organization_id:         string
-  seller_id:               number
-  nickname:                string | null
-  level_id:                string | null
-  level_color:             string | null
-  power_seller_status:     string | null
-  claims_rate:             number | null
-  cancellations_rate:      number | null
-  delayed_handling_rate:   number | null
-  claims_count:            number | null
-  cancellations_count:     number | null
-  delayed_handling_count:  number | null
-  total_transactions:      number | null
-  completed_transactions:  number | null
-  cancelled_transactions:  number | null
-  positive_ratings:        number | null
-  neutral_ratings:         number | null
-  negative_ratings:        number | null
-  is_mercado_lider:        boolean
-  is_at_risk:              boolean
-  risk_reasons:            string[]
-  trend:                   Trend
-  last_synced_at:          string
-}
-
-interface HistoryPoint {
-  snapshot_date:          string
-  level_id:               string | null
-  claims_rate:            number | null
-  cancellations_rate:     number | null
-  delayed_handling_rate:  number | null
-  is_at_risk:             boolean
-  risk_reasons:           string[]
-}
-
-// Limites Mercado Líder MLB
-const LIMIT  = { claims: 0.01, cancellations: 0.005, late: 0.06 }
-// Thresholds amber (alerta — perto do limite)
-const AMBER  = { claims: 0.008, cancellations: 0.004, late: 0.05 }
-
-type Translator = ReturnType<typeof useTranslations>
-
-const LEVEL_DETAILS: Record<string, { labelKey: string; bg: string; text: string; border: string }> = {
-  '5_green':       { labelKey: 'levelPlatinum', bg: 'rgba(34,197,94,0.12)',  text: '#22c55e', border: 'rgba(34,197,94,0.40)' },
-  '4_light_green': { labelKey: 'levelGold',     bg: 'rgba(132,204,22,0.12)', text: '#84cc16', border: 'rgba(132,204,22,0.40)' },
-  '3_yellow':      { labelKey: 'levelLeader',   bg: 'rgba(234,179,8,0.12)',  text: '#eab308', border: 'rgba(234,179,8,0.40)' },
-  '2_orange':      { labelKey: 'levelNone',     bg: 'rgba(249,115,22,0.12)', text: '#f97316', border: 'rgba(249,115,22,0.40)' },
-  '1_red':         { labelKey: 'levelRed',      bg: 'rgba(239,68,68,0.12)',  text: '#ef4444', border: 'rgba(239,68,68,0.40)' },
-  '0_red':         { labelKey: 'levelNoRep',    bg: 'rgba(113,113,122,0.12)', text: '#a1a1aa', border: 'rgba(113,113,122,0.30)' },
-}
-
-const RISK_KEYS = ['claims_above_0_8', 'cancellations_above_0_4', 'late_handling_above_5'] as const
-
-const pct  = (v: number | null) => v == null ? '—' : `${(v * 100).toFixed(2)}%`
-const num  = (v: number | null | undefined) => v == null ? '—' : v.toLocaleString('pt-BR')
-const dateBr = (iso: string) =>
-  new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-
-function timeSince(iso: string, t: Translator): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.round(diff / 60_000)
-  if (m < 1)  return t('timeNow')
-  if (m < 60) return t('timeMinutesAgo', { m })
-  const h = Math.round(m / 60)
-  return h < 24 ? t('timeHoursAgo', { h }) : t('timeDaysAgo', { d: Math.round(h / 24) })
-}
-
-function metricStatus(value: number | null, amber: number, limit: number): 'good' | 'warning' | 'critical' | 'unknown' {
-  if (value == null) return 'unknown'
-  if (value >= limit) return 'critical'
-  if (value >= amber) return 'warning'
-  return 'good'
-}
-
-const STATUS_COLOR = {
-  good:     { text: '#22c55e', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.30)'  },
-  warning:  { text: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.30)' },
-  critical: { text: '#ef4444', bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.30)'  },
-  unknown:  { text: '#71717a', bg: 'rgba(255,255,255,0.02)', border: 'rgba(255,255,255,0.10)' },
-}
-
-function TrendIndicator({ trend, t }: { trend: Trend; t: Translator }) {
-  if (trend === 'improving')
-    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#22c55e' }}><TrendingUp size={12} /> {t('trendImproving')}</span>
-  if (trend === 'degrading')
-    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#ef4444' }}><TrendingDown size={12} /> {t('trendDegrading')}</span>
-  if (trend === 'stable')
-    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#a1a1aa' }}><Minus size={12} /> {t('trendStable')}</span>
-  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#71717a' }}><Minus size={12} /> {t('trendNoHistory')}</span>
-}
-
-function MetricCard({
-  title, value, limit, amber, count, period, trend, t,
-}: {
-  title: string
-  value: number | null
-  limit: number
-  amber: number
-  count: number | null
-  period: string
-  trend: Trend
-  t: Translator
-}) {
-  const status = metricStatus(value, amber, limit)
-  const palette = STATUS_COLOR[status]
-  const limitPct = (limit * 100).toFixed(1) + '%'
-  const usagePct = value != null ? Math.min(100, (value / limit) * 100) : 0
-
+function KpiCard({ label, value, color, icon, sub }: { label: string; value: string; color: string; icon: React.ReactNode; sub?: string }) {
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.02)',
-      border:     `1px solid ${palette.border}`,
-      borderRadius: 12, padding: '18px 20px',
-      position: 'relative', overflow: 'hidden',
-    }}>
-      <div style={{
-        position: 'absolute', top: 0, right: 0,
-        width: 120, height: 120,
-        background: `radial-gradient(circle at top right, ${palette.bg}, transparent 70%)`,
-        pointerEvents: 'none',
-      }} />
-      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa', marginBottom: 10 }}>
-        {title}
+    <div className="rounded-xl p-4" style={{ background: '#0c0c10', border: `1px solid ${color}30` }}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
+        <div style={{ color }}>{icon}</div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-        <div style={{ fontSize: 32, fontWeight: 600, color: palette.text, lineHeight: 1 }}>
-          {pct(value)}
-        </div>
-        <div style={{ fontSize: 11, color: '#71717a' }}>
-          {t('repMlLimit', { limit: limitPct })}
-        </div>
-      </div>
-      <div style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 12 }}>
-        {t('repOccurrences', { count: num(count), period: period || t('repLast60Days') })}
-      </div>
-      {/* Barra de progresso até o limite ML */}
-      <div style={{
-        height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2,
-        marginBottom: 10, overflow: 'hidden',
-      }}>
-        <div style={{
-          width: `${usagePct}%`, height: '100%',
-          background: palette.text, transition: 'width 300ms',
-        }} />
-      </div>
-      <div style={{ fontSize: 11 }}>
-        <TrendIndicator trend={trend} t={t} />
-      </div>
+      <p className="text-2xl font-bold" style={{ color }}>{value}</p>
+      {sub && <p className="text-[11px] text-zinc-500 mt-1">{sub}</p>}
     </div>
   )
 }
 
-/** Mini sparkline SVG das últimas N taxas (claims OR cancellations OR late). */
-function MiniSparkline({ values, color, t, height = 40, width = 200 }: {
-  values: Array<number | null>
-  color:  string
-  t:      Translator
-  height?: number
-  width?:  number
-}) {
-  const valid = values.filter((v): v is number => v != null)
-  if (valid.length < 2) {
-    return <div style={{ height, width, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#52525b' }}>
-      {t('repInsufficientHistory')}
-    </div>
-  }
-  const max = Math.max(...valid)
-  const min = Math.min(...valid)
-  const range = max - min || 1
-  const stepX = width / Math.max(1, values.length - 1)
-  const points = values
-    .map((v, i) => v == null ? null : `${(i * stepX).toFixed(1)},${(height - ((v - min) / range) * height * 0.85 - height * 0.075).toFixed(1)}`)
-    .filter((p): p is string => p != null)
-    .join(' ')
+function FilterSelect({ label, value, options, onChange }: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void }) {
+  const active = value !== 'all' && value !== 'risk'
   return (
-    <svg width={width} height={height} style={{ display: 'block' }}>
-      <polyline points={points} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
+    <label className="flex items-center gap-1">
+      <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{label}:</span>
+      <select value={value} onChange={e => onChange(e.target.value)} className="rounded-lg px-2 py-1.5 text-xs outline-none cursor-pointer"
+        style={{ background: active ? 'rgba(0,229,255,0.08)' : '#09090b', border: `1px solid ${active ? 'rgba(0,229,255,0.3)' : '#1a1a1f'}`, color: active ? '#67e8f9' : '#fafafa' }}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </label>
   )
 }
 
-export default function ReputationPage() {
-  const t = useTranslations('executive')
-  const supabase = useMemo(() => createClient(), [])
-  const [snapshots, setSnapshots] = useState<ReputationCurrent[]>([])
-  const [selected,  setSelected]  = useState<number | null>(null)
-  const [history,   setHistory]   = useState<HistoryPoint[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [syncing,   setSyncing]   = useState(false)
+/** Central de atenção — quem precisa de ação primeiro. */
+function AttentionCenter({ accounts, view, t }: { accounts: AccountView[]; view: (a: AccountView) => ReputationResult | null; t: Translator }) {
+  const items = accounts
+    .map(a => ({ a, r: view(a) }))
+    .filter((x): x is { a: AccountView; r: ReputationResult } => !!x.r)
+    .filter(x => x.r.overallLevel !== 'green' || riskRank(x.r.riskLevel) >= riskRank('high'))
+    .sort((x, y) => attentionScore(y.r) - attentionScore(x.r))
+  return (
+    <section style={{ ...CARD, padding: '16px 18px' }}>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: '#fafafa' }}>
+          <ShieldAlert size={15} className="text-amber-400" /> {t('attention.title')}
+        </h2>
+        <span className="text-[11px] text-zinc-500">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <div className="flex items-center gap-2 text-xs text-zinc-400"><CheckCircle2 size={14} className="text-green-500" /> {t('attention.empty')}</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+          {items.slice(0, 9).map(({ a, r }) => {
+            const m = tightestMetric(r)
+            const s = LEVEL_STYLE[r.overallLevel]
+            return (
+              <Link key={a.seller_id} href={`/dashboard/executive/reputation/${a.seller_id}`}
+                className="rounded-lg p-3 transition-colors hover:bg-white/[0.03]" style={{ border: `1px solid ${s.border}`, background: s.bg }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold truncate" style={{ color: '#fafafa' }}>{accountName(a, t)}</span>
+                  <RiskBadge risk={r.riskLevel} t={t} size="sm" />
+                </div>
+                {m && m.percentage != null && (
+                  <div className="mt-1.5 text-[12px]" style={{ color: '#d4d4d8' }}>
+                    {t('attention.line', { metric: t(`metricShort.${m.key}`), pct: fmtPct(m.percentage), level: m.currentLimit != null ? t(`level.${m.level}`).toLowerCase() : t('level.orange').toLowerCase(), limit: fmtPct(m.currentLimit ?? m.orangeLimit) })}
+                    <div className="text-[11px] mt-0.5" style={{ color: m.distancePercentagePoints != null && m.distancePercentagePoints >= 0 ? '#a1a1aa' : '#ef4444' }}>
+                      {m.distancePercentagePoints != null ? t('attention.margin', { pp: fmtPp(m.distancePercentagePoints) }) : t('card.exceeded', { limit: fmtPct(m.orangeLimit) })}
+                    </div>
+                  </div>
+                )}
+                <div className="mt-2 flex items-center gap-2"><LevelBadge level={r.overallLevel} t={t} size="sm" /><PeriodChip r={r} t={t} /></div>
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
 
-  const getHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error(t('notAuthenticated'))
-    return { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-  }, [supabase, t])
+export default function ReputationDashboardPage() {
+  const t = useTranslations('mlReputation')
+  const [data, setData]       = useState<DashboardView | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [rulesOpen, setRulesOpen]   = useState(false)
+  const [simulate, setSimulate]     = useState(false)
+  const [alertIds, setAlertIds]     = useState<Set<number>>(new Set())
 
-  const loadCurrent = useCallback(async () => {
-    setLoading(true)
+  const [status, setStatus] = useState<StatusFilter>('all')
+  const [period, setPeriod] = useState<PeriodFilter>('all')
+  const [flag, setFlag]     = useState<FlagFilter>('all')
+  const [sort, setSort]     = useState<SortKey>('risk')
+  const [query, setQuery]   = useState('')
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
-      const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/executive/reputation`, { headers })
-      if (res.ok) {
-        const body = await res.json() as { snapshots: ReputationCurrent[] }
-        setSnapshots(body.snapshots ?? [])
-        if (!selected && body.snapshots.length > 0) {
-          setSelected(body.snapshots[0].seller_id)
-        }
-      }
+      const [d, ev] = await Promise.all([fetchDashboard(), fetchEvents(null, 100).catch(() => ({ events: [] }))])
+      setData(d)
+      setAlertIds(new Set(ev.events.filter(e => e.severity !== 'info').map(e => Number(e.seller_id))))
+      setError(null)
     } catch (err) {
-      console.warn('[reputation] load fail:', (err as Error).message)
+      setError((err as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [getHeaders, selected])
+  }, [])
 
-  const loadHistory = useCallback(async (sellerId: number) => {
-    try {
-      const headers = await getHeaders()
-      const res = await fetch(`${BACKEND}/executive/reputation/history?seller_id=${sellerId}&days=90`, { headers })
-      if (res.ok) {
-        const body = await res.json() as { history: HistoryPoint[] }
-        setHistory(body.history ?? [])
-      }
-    } catch (err) {
-      console.warn('[reputation] history fail:', (err as Error).message)
-    }
-  }, [getHeaders])
+  useEffect(() => { void load() }, [load])
+  useReputationRealtime(() => { void load(true) })
+  const tick = useGentlePolling(() => { void load(true) })
 
-  const triggerSync = useCallback(async () => {
-    setSyncing(true)
-    try {
-      const headers = await getHeaders()
-      await fetch(`${BACKEND}/executive/reputation/sync`, { method: 'POST', headers })
-      await loadCurrent()
-      if (selected) await loadHistory(selected)
-    } catch (err) {
-      console.warn('[reputation] sync fail:', (err as Error).message)
-    } finally {
-      setSyncing(false)
-    }
-  }, [getHeaders, loadCurrent, loadHistory, selected])
-
-  useEffect(() => { void loadCurrent() }, [loadCurrent])
+  // Contas "pendentes" (1º cálculo em background): re-checa em 15s sem flash.
   useEffect(() => {
-    if (selected != null) void loadHistory(selected)
-  }, [selected, loadHistory])
+    if (!data || data.summary.pending === 0) return
+    const id = setTimeout(() => { void load(true) }, 15_000)
+    return () => clearTimeout(id)
+  }, [data, load])
 
-  const current = useMemo(
-    () => snapshots.find(s => s.seller_id === selected) ?? null,
-    [snapshots, selected],
-  )
+  const refresh = useCallback(async () => {
+    setRefreshing(true)
+    try { await recalcAll(); await load(true) }
+    catch (err) { setError((err as Error).message) }
+    finally { setRefreshing(false) }
+  }, [load])
 
-  const levelInfo = current?.level_id ? LEVEL_DETAILS[current.level_id] : null
+  const canSimulate = !!data?.rules.upcoming
+  const view = useCallback((a: AccountView): ReputationResult | null =>
+    (simulate && canSimulate ? a.upcoming : a.active) ?? a.active, [simulate, canSimulate])
 
-  // Sparkline data (history vem DESC, inverter pra cronológico)
-  const sparkHistory = useMemo(() => [...history].reverse(), [history])
+  const threshold = (simulate && data?.rules.upcoming ? data.rules.upcoming : data?.rules.active)?.config.measurement.minimumSalesForShortPeriod ?? 68
+
+  const filtered = useMemo(() => {
+    if (!data) return []
+    const q = query.trim().toLowerCase()
+    const metricPct = (r: ReputationResult | null, k: MetricKey) => r?.metrics[k].percentage ?? -1
+    const list = data.accounts.filter(a => {
+      const r = view(a)
+      if (q && !(a.nickname ?? '').toLowerCase().includes(q) && !String(a.seller_id).includes(q)) return false
+      if (status !== 'all' && (r?.overallLevel ?? 'unknown') !== status) return false
+      if (period !== 'all' && r && ((period === 'short') !== (r.measurementPeriod === r.shortPeriodDays))) return false
+      if (flag === 'near68' && !(r && ((r.salesUntilShortPeriod > 0 && r.salesUntilShortPeriod <= 10) || r.periodForecast?.kind === 'may_drop_to_long'))) return false
+      if (flag === 'alerts' && !alertIds.has(a.seller_id)) return false
+      return true
+    })
+    const cmp: Record<SortKey, (x: AccountView, y: AccountView) => number> = {
+      risk:      (x, y) => attentionScore(view(y)) - attentionScore(view(x)),
+      worst:     (x, y) => levelRank(view(y)?.overallLevel ?? 'unknown') - levelRank(view(x)?.overallLevel ?? 'unknown'),
+      salesDesc: (x, y) => (view(y)?.salesLast60Days ?? -1) - (view(x)?.salesLast60Days ?? -1),
+      salesAsc:  (x, y) => (view(x)?.salesLast60Days ?? 1e9) - (view(y)?.salesLast60Days ?? 1e9),
+      near68:    (x, y) => Math.abs((view(x)?.salesLast60Days ?? 1e9) - threshold) - Math.abs((view(y)?.salesLast60Days ?? 1e9) - threshold),
+      cancellations:      (x, y) => metricPct(view(y), 'cancellations') - metricPct(view(x), 'cancellations'),
+      claims:             (x, y) => metricPct(view(y), 'claims') - metricPct(view(x), 'claims'),
+      incorrectShipments: (x, y) => metricPct(view(y), 'incorrectShipments') - metricPct(view(x), 'incorrectShipments'),
+    }
+    return [...list].sort(cmp[sort])
+  }, [data, query, status, period, flag, sort, view, alertIds, threshold])
+
+  const lastCalc = useMemo(() => {
+    const times = (data?.accounts ?? []).map(a => a.calculated_at).filter((x): x is string => !!x).sort()
+    return times.length ? times[times.length - 1] : null
+  }, [data])
+  void tick
+
+  // Modal "Entenda as regras": mostra a metodologia NOVA quando ela existe
+  // (com a data de vigência e a nota da regra anterior); senão, a vigente.
+  const ruleForModal   = data?.rules.upcoming ?? data?.rules.active ?? null
+  const legacyForModal = data?.rules.upcoming ? data.rules.active : null
 
   return (
-    <div style={{ padding: '20px 24px', maxWidth: 1400, margin: '0 auto' }}>
+    <div className="p-6 space-y-5 max-w-7xl mx-auto" style={{ background: 'var(--background)', minHeight: '100vh', color: 'var(--text)' }}>
       {/* Header */}
-      <div style={{
-        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
-        gap: 12, marginBottom: 24,
-      }}>
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0, color: '#fafafa' }}>
-            {t('reputationTitle')}
-          </h1>
-          <div style={{ fontSize: 13, color: '#71717a', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Activity size={12} />
-            {current
-              ? <>{t('reputationUpdatedMeta', { since: timeSince(current.last_synced_at, t) })}</>
-              : <>{t('loading')}</>}
-          </div>
+          <p className="text-zinc-500 text-xs uppercase tracking-widest">{t('eyebrow')}</p>
+          <h1 className="text-2xl font-bold mt-1 flex items-center gap-2"><ShieldCheck size={22} className="text-cyan-400" />{t('title')}</h1>
+          <p className="text-[12px] text-zinc-500 mt-1">{t('subtitle')}</p>
+          <p className="text-[11px] text-zinc-500 mt-1 flex items-center gap-1.5"><Activity size={11} />{t('updatedAt', { when: timeSince(lastCalc, t) })}</p>
         </div>
-        <button
-          onClick={triggerSync}
-          disabled={syncing}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: 'rgba(0,229,255,0.10)',
-            border: '1px solid rgba(0,229,255,0.30)',
-            color: '#00E5FF', padding: '8px 14px', borderRadius: 8,
-            fontSize: 13, cursor: syncing ? 'wait' : 'pointer',
-            opacity: syncing ? 0.6 : 1, fontWeight: 500,
-          }}
-        >
-          <RefreshCw size={14} style={{ animation: syncing ? 'spin 1s linear infinite' : undefined }} />
-          {syncing ? t('reputationSyncing') : t('reputationSyncNow')}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {canSimulate && data?.rules.upcoming && (
+            <button onClick={() => setSimulate(v => !v)} aria-pressed={simulate}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
+              style={{ background: simulate ? 'rgba(0,229,255,0.12)' : 'transparent', border: `1px solid ${simulate ? 'rgba(0,229,255,0.4)' : '#27272a'}`, color: simulate ? '#00E5FF' : '#a1a1aa' }}>
+              <FlaskConical size={12} /> {t('simToggle', { date: fmtDateBr(data.rules.upcoming.effectiveFrom) })}
+            </button>
+          )}
+          <button onClick={() => setRulesOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold" style={{ border: '1px solid #27272a', color: '#d4d4d8', background: 'transparent' }}>
+            <BookOpen size={12} /> {t('rulesButton')}
+          </button>
+          <button onClick={refresh} disabled={refreshing} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black text-xs font-semibold">
+            {refreshing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            {refreshing ? t('refreshing') : t('refresh')}
+          </button>
+        </div>
       </div>
 
-      {/* Seletor de conta (se >1) */}
-      {snapshots.length > 1 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-          {snapshots.map(s => (
-            <button
-              key={s.seller_id}
-              onClick={() => setSelected(s.seller_id)}
-              style={{
-                padding: '6px 14px', borderRadius: 8, fontSize: 12,
-                background: s.seller_id === selected ? 'rgba(0,229,255,0.10)' : 'rgba(255,255,255,0.02)',
-                border:     s.seller_id === selected ? '1px solid rgba(0,229,255,0.30)' : '1px solid rgba(255,255,255,0.10)',
-                color:      s.seller_id === selected ? '#00E5FF' : '#a1a1aa',
-                cursor: 'pointer', fontWeight: 500,
-              }}
-            >
-              {s.nickname ?? t('accountFallback', { id: s.seller_id })}
-              {s.is_at_risk && <AlertTriangle size={11} style={{ marginLeft: 6, color: '#f59e0b' }} />}
-            </button>
-          ))}
+      {simulate && data?.rules.upcoming && (
+        <div className="rounded-lg p-3 text-xs flex items-start gap-2" style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.25)', color: '#a5f3fc' }}>
+          <FlaskConical size={14} className="shrink-0 mt-0.5" />
+          <span>{t('simActiveBanner', { date: fmtDateBr(data.rules.upcoming.effectiveFrom), name: data.rules.active.name })}</span>
         </div>
       )}
-
-      {loading && !current && (
-        <div style={{ textAlign: 'center', padding: 40, color: '#71717a' }}>{t('loading')}</div>
+      {!simulate && data?.rules.upcoming && (
+        <p className="text-[11px] text-zinc-500">{t('ruleActiveLabel', { name: data.rules.active.name })} · {t('ruleUpcomingLabel', { date: fmtDateBr(data.rules.upcoming.effectiveFrom) })}</p>
       )}
 
-      {current && (
+      {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>}
+
+      {loading && !data && (
         <>
-          {/* Risk alert */}
-          {current.is_at_risk && (
-            <div style={{
-              background: 'rgba(245,158,11,0.08)',
-              border: '1px solid rgba(245,158,11,0.30)',
-              borderRadius: 12, padding: '14px 18px',
-              marginBottom: 20, display: 'flex', gap: 12,
-            }}>
-              <AlertTriangle size={20} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#f59e0b', marginBottom: 4 }}>
-                  {t('repRiskAlertTitle')}
-                </div>
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: '#e4e4e7' }}>
-                  {current.risk_reasons.map(r => (
-                    <li key={r}>{(RISK_KEYS as readonly string[]).includes(r) ? t(`riskLabels.${r}`) : r}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* Level badge gigante */}
-          {levelInfo && (
-            <div style={{
-              background:   levelInfo.bg,
-              border:       `1px solid ${levelInfo.border}`,
-              borderRadius: 16, padding: '24px 28px',
-              marginBottom: 24, display: 'flex', flexWrap: 'wrap',
-              alignItems: 'center', justifyContent: 'space-between', gap: 20,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-                <Award size={48} color={levelInfo.text} />
-                <div>
-                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#a1a1aa', marginBottom: 4 }}>
-                    {t('repCurrentLevel')}
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 600, color: levelInfo.text, lineHeight: 1.1 }}>
-                    {t(`levels.${levelInfo.labelKey}`)}
-                  </div>
-                  <div style={{ fontSize: 13, color: '#a1a1aa', marginTop: 4 }}>
-                    {t(`levelSubs.${levelInfo.labelKey}`)}{current.power_seller_status ? ` · ${current.power_seller_status}` : ''}
-                  </div>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#71717a', marginBottom: 4 }}>
-                  {t('repTransactionsHistory')}
-                </div>
-                <div style={{ fontSize: 24, fontWeight: 500, color: '#e4e4e7' }}>
-                  {num(current.completed_transactions)}
-                </div>
-                <div style={{ fontSize: 11, color: '#71717a', marginTop: 2 }}>
-                  {t('repTransactionsBreakdown', { total: num(current.total_transactions), cancelled: num(current.cancelled_transactions) })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Métricas — 3 cards */}
-          <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            {t('repMetricsTitle')}
-          </h2>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 12, marginBottom: 28,
-          }}>
-            <MetricCard
-              title={t('repMetricClaims')}
-              value={current.claims_rate}
-              limit={LIMIT.claims}
-              amber={AMBER.claims}
-              count={current.claims_count}
-              period={t('repPeriod60d')}
-              trend={current.trend}
-              t={t}
-            />
-            <MetricCard
-              title={t('repMetricCancellations')}
-              value={current.cancellations_rate}
-              limit={LIMIT.cancellations}
-              amber={AMBER.cancellations}
-              count={current.cancellations_count}
-              period={t('repPeriod60d')}
-              trend={current.trend}
-              t={t}
-            />
-            <MetricCard
-              title={t('repMetricLateShipments')}
-              value={current.delayed_handling_rate}
-              limit={LIMIT.late}
-              amber={AMBER.late}
-              count={current.delayed_handling_count}
-              period={t('repPeriod60d')}
-              trend={current.trend}
-              t={t}
-            />
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-24 rounded-xl bg-zinc-900/50 animate-pulse" />)}
           </div>
-
-          {/* Histórico — sparklines + tabela */}
-          <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-            {t('repEvolutionTitle', { count: history.length || 0 })}
-          </h2>
-          {history.length === 0 ? (
-            <div style={{
-              background: 'rgba(255,255,255,0.015)',
-              border: '1px dashed rgba(255,255,255,0.10)',
-              borderRadius: 12, padding: 20, color: '#71717a', fontSize: 13,
-            }}>
-              {t('repNoHistoryYet', { since: timeSince(current.last_synced_at, t) })}
-            </div>
-          ) : (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: 12, marginBottom: 28,
-            }}>
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' }}>
-                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa', marginBottom: 12 }}>
-                  {t('repSparkClaims')}
-                </div>
-                <MiniSparkline values={sparkHistory.map(h => h.claims_rate)} color="#ef4444" t={t} />
-              </div>
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' }}>
-                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa', marginBottom: 12 }}>
-                  {t('repSparkCancellations')}
-                </div>
-                <MiniSparkline values={sparkHistory.map(h => h.cancellations_rate)} color="#f59e0b" t={t} />
-              </div>
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' }}>
-                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: '#a1a1aa', marginBottom: 12 }}>
-                  {t('repSparkLateShipments')}
-                </div>
-                <MiniSparkline values={sparkHistory.map(h => h.delayed_handling_rate)} color="#eab308" t={t} />
-              </div>
-            </div>
-          )}
-
-          {/* Ratings (informativo) */}
-          {(current.positive_ratings != null || current.negative_ratings != null) && (
-            <>
-              <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: '#a1a1aa', marginBottom: 12 }}>
-                {t('repBuyerRatings')}
-              </h2>
-              <div style={{
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 12, padding: '16px 20px',
-                display: 'flex', gap: 32, flexWrap: 'wrap',
-              }}>
-                <div>
-                  <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>{t('repRatingPositive')}</div>
-                  <div style={{ fontSize: 20, fontWeight: 500, color: '#22c55e' }}>
-                    {current.positive_ratings != null ? `${(current.positive_ratings * 100).toFixed(0)}%` : '—'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>{t('repRatingNeutral')}</div>
-                  <div style={{ fontSize: 20, fontWeight: 500, color: '#a1a1aa' }}>
-                    {current.neutral_ratings != null ? `${(current.neutral_ratings * 100).toFixed(0)}%` : '—'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>{t('repRatingNegative')}</div>
-                  <div style={{ fontSize: 20, fontWeight: 500, color: '#ef4444' }}>
-                    {current.negative_ratings != null ? `${(current.negative_ratings * 100).toFixed(0)}%` : '—'}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+          <div className="h-40 rounded-xl bg-zinc-900/50 animate-pulse" />
+          <div className="h-64 rounded-xl bg-zinc-900/50 animate-pulse" />
         </>
       )}
 
-      <style jsx>{`
-        @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-      `}</style>
+      {data && data.accounts.length === 0 && !loading && (
+        <div className="rounded-xl p-8 text-center" style={CARD}>
+          <Users size={48} className="mx-auto text-zinc-700 mb-3" />
+          <p className="text-zinc-300 font-medium">{t('empty.title')}</p>
+          <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto">{t('empty.desc')}</p>
+          <Link href="/dashboard/configuracoes/integracoes" className="inline-flex items-center gap-1 mt-4 text-xs font-semibold text-cyan-400">{t('empty.cta')} <ArrowRight size={12} /></Link>
+        </div>
+      )}
+
+      {data && data.accounts.length > 0 && (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            <KpiCard label={t('kpi.total')}      value={fmtInt(data.summary.total)}              color="#00E5FF" icon={<Users size={14} />} />
+            <KpiCard label={t('kpi.healthy')}    value={fmtInt(data.summary.healthy)}            color="#22c55e" icon={<CheckCircle2 size={14} />} />
+            <KpiCard label={t('kpi.attention')}  value={fmtInt(data.summary.attention)}          color="#eab308" icon={<AlertTriangle size={14} />} />
+            <KpiCard label={t('kpi.critical')}   value={fmtInt(data.summary.critical)}           color="#ef4444" icon={<ShieldAlert size={14} />} />
+            <KpiCard label={t('kpi.nearSwitch')} value={fmtInt(data.summary.near_period_switch)} color="#a5b4fc" icon={<Clock size={14} />} />
+            <KpiCard label={t('kpi.worsened')}   value={fmtInt(data.summary.worsened_recently)}  color="#f97316" icon={<TrendingDown size={14} />} sub={data.summary.pending > 0 ? t('kpi.pending') + `: ${data.summary.pending}` : undefined} />
+          </div>
+
+          {data.summary.pending > 0 && (
+            <div className="rounded-lg p-3 text-xs flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid #1a1a1f', color: '#a1a1aa' }}>
+              <Loader2 size={13} className="animate-spin" /> {t('pendingBanner', { n: data.summary.pending })}
+            </div>
+          )}
+
+          <AttentionCenter accounts={data.accounts} view={view} t={t} />
+
+          {/* Filtros */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5" style={{ background: '#09090b', border: '1px solid #1a1a1f', minWidth: 220 }}>
+              <Search size={13} className="text-zinc-500" />
+              <input value={query} onChange={e => setQuery(e.target.value)} placeholder={t('filters.search')} aria-label={t('filters.search')}
+                className="bg-transparent outline-none text-xs w-full" style={{ color: '#fafafa' }} />
+            </div>
+            <FilterSelect label={t('filters.status')} value={status} onChange={v => setStatus(v as StatusFilter)} options={[
+              { value: 'all', label: t('filters.all') }, { value: 'green', label: t('level.green') }, { value: 'yellow', label: t('level.yellow') },
+              { value: 'orange', label: t('level.orange') }, { value: 'red', label: t('level.red') },
+            ]} />
+            <FilterSelect label={t('filters.period')} value={period} onChange={v => setPeriod(v as PeriodFilter)} options={[
+              { value: 'all', label: t('filters.all') }, { value: 'short', label: t('period.days', { days: 60 }) }, { value: 'long', label: t('period.days', { days: 365 }) },
+            ]} />
+            <FilterSelect label={t('filters.flag')} value={flag} onChange={v => setFlag(v as FlagFilter)} options={[
+              { value: 'all', label: t('filters.all') }, { value: 'near68', label: t('filters.near68', { threshold }) }, { value: 'alerts', label: t('filters.withAlerts') },
+            ]} />
+            <FilterSelect label={t('filters.sort')} value={sort} onChange={v => setSort(v as SortKey)} options={[
+              { value: 'risk', label: t('filters.sortRisk') }, { value: 'worst', label: t('filters.sortWorst') },
+              { value: 'salesDesc', label: t('filters.sortSalesDesc') }, { value: 'salesAsc', label: t('filters.sortSalesAsc') },
+              { value: 'near68', label: t('filters.sortNear68', { threshold }) },
+              { value: 'cancellations', label: t('filters.sortCancel') }, { value: 'claims', label: t('filters.sortClaims') }, { value: 'incorrectShipments', label: t('filters.sortShip') },
+            ]} />
+          </div>
+
+          {/* Tabela multicontas */}
+          <div className="rounded-xl overflow-x-auto" style={CARD}>
+            <table className="w-full" style={{ minWidth: 1040 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #1a1a1f' }}>
+                  {[t('table.account'), t('table.sales60'), t('table.sales365'), t('table.period'), t('metricShort.cancellations'), t('metricShort.incorrectShipments'), t('metricShort.claims'), t('table.risk'), ''].map((h, i) => (
+                    <th key={i} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#52525b', background: '#0e0e11' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-zinc-500">{t('filters.noResults')}</td></tr>
+                )}
+                {filtered.map(a => {
+                  const r = view(a)
+                  return (
+                    <tr key={a.seller_id} style={{ borderBottom: '1px solid #1a1a1f', transition: 'background 100ms' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.025)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      <td className="px-3 py-3">
+                        <Link href={`/dashboard/executive/reputation/${a.seller_id}`} className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ background: 'rgba(255,230,0,0.12)', color: '#FFE600' }}>
+                            {accountName(a, t).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold truncate" style={{ color: '#fafafa' }}>{accountName(a, t)}</div>
+                            <div className="text-[10px] text-zinc-500">{t('table.id', { id: a.seller_id })}{r?.official?.levelId ? ` · ${t(`detail.level.${r.official.levelId}`)}` : ''}</div>
+                          </div>
+                        </Link>
+                      </td>
+                      {!r ? (
+                        <td colSpan={7} className="px-3 py-3 text-xs" style={{ color: a.status === 'error' ? '#f87171' : '#71717a' }}>
+                          {a.status === 'error' ? `${t('table.error')}: ${a.last_error ?? ''}` : <span className="inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> {t('table.pending')}</span>}
+                        </td>
+                      ) : (
+                        <>
+                          <td className="px-3 py-3 text-sm font-semibold" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            {fmtInt(r.salesLast60Days)}
+                            {r.measurementPeriod === r.longPeriodDays && (
+                              <div style={{ width: 120, marginTop: 4 }}><ProgressToShort r={r} t={t} compact /></div>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-sm" style={{ fontVariantNumeric: 'tabular-nums', color: '#a1a1aa' }}>{fmtInt(r.salesLast365Days)}</td>
+                          <td className="px-3 py-3"><PeriodChip r={r} t={t} /></td>
+                          <td className="px-3 py-3"><MetricCell m={r.metrics.cancellations} t={t} /></td>
+                          <td className="px-3 py-3"><MetricCell m={r.metrics.incorrectShipments} t={t} /></td>
+                          <td className="px-3 py-3"><MetricCell m={r.metrics.claims} t={t} /></td>
+                          <td className="px-3 py-3"><RiskBadge risk={r.riskLevel} t={t} /></td>
+                        </>
+                      )}
+                      <td className="px-3 py-3 text-right">
+                        <Link href={`/dashboard/executive/reputation/${a.seller_id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-cyan-400 whitespace-nowrap">
+                          {t('table.details')} <ArrowRight size={12} />
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} rule={ruleForModal} legacy={legacyForModal} t={t} />
     </div>
   )
 }

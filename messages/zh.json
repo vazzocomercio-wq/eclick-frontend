@@ -13481,5 +13481,222 @@
       "convPending": "待定转化",
       "attributionNote": "精细的转化↔匹配归因将在真实接入（F2.2）连接后通过 sub_id 关联。"
     }
+  },
+  "mlReputation": {
+    "title": "账户信誉",
+    "eyebrow": "Mercado Livre",
+    "subtitle": "预防中心 — 在信誉受损之前发现问题",
+    "loading": "加载中…",
+    "neverCalculated": "尚未计算",
+    "timeNow": "刚刚",
+    "timeMinutesAgo": "{m} 分钟前",
+    "timeHoursAgo": "{h} 小时前",
+    "timeDaysAgo": "{d} 天前",
+    "updatedAt": "最后更新：{when}",
+    "refresh": "刷新",
+    "refreshing": "刷新中…",
+    "rulesButton": "了解规则",
+    "simToggle": "模拟 {date} 的规则",
+    "simActiveBanner": "您正在查看 {date} 生效规则的模拟。当前生效的规则是 {name}。",
+    "ruleActiveLabel": "当前规则：{name}",
+    "ruleUpcomingLabel": "新方法自 {date} 起生效。",
+    "pendingBanner": "正在为 {n} 个账户进行首次计算 — 页面会自动刷新。",
+    "kpi": {
+      "total": "ML 账户",
+      "healthy": "健康",
+      "attention": "需关注",
+      "critical": "严重",
+      "nearSwitch": "接近切换周期",
+      "worsened": "近期恶化",
+      "pending": "计算中"
+    },
+    "level": {
+      "green": "绿色",
+      "yellow": "黄色",
+      "orange": "橙色",
+      "red": "红色",
+      "unknown": "无数据"
+    },
+    "risk": {
+      "safe": "安全",
+      "attention": "关注",
+      "high": "高风险",
+      "critical": "严重",
+      "unknown": "无数据"
+    },
+    "metric": {
+      "cancellations": "由您取消",
+      "incorrectShipments": "错误发货",
+      "claims": "投诉"
+    },
+    "metricShort": {
+      "cancellations": "取消",
+      "incorrectShipments": "发货",
+      "claims": "投诉"
+    },
+    "period": {
+      "title": "考核周期",
+      "days": "{days} 天",
+      "sales60": "60 天销量",
+      "sales365": "365 天销量",
+      "considered": "计入的销量（分母）",
+      "salesLine365": "最近 60 天 {sales} 笔销售 → 按 365 天考核",
+      "tooltip60": "该账户最近 {short} 天完成了 {threshold} 笔或以上销售，因此信誉按最近 {short} 天计算。",
+      "tooltip365": "该账户最近 {short} 天完成的销售少于 {threshold} 笔，因此信誉按最近 {long} 天计算。",
+      "missing": "还差 {n} 笔销售进入 {short} 天考核",
+      "progress": "{sales} / {threshold} 笔",
+      "inShort": "该账户按最近 {short} 天考核。",
+      "mayDrop": "注意：若没有新销售，该账户可能在约 {days} 天后回到 {long} 天考核 — 未来 {horizon} 天内有 {exits} 笔销售移出窗口。",
+      "stable": "未来 {horizon} 天内有 {exits} 笔销售移出窗口 — 若销售节奏不变，预计不会切换周期。"
+    },
+    "card": {
+      "ofSales": "{total} 笔中的 {affected} 笔",
+      "limitCurrent": "{level}上限：{limit}",
+      "margin": "可用余量：{pp}",
+      "exceeded": "超过橙色上限（{limit}）— 红色区间",
+      "remainingStatic": "在当前销量不变的情况下，大约还可发生 {n} 次才会进入{level}（静态情形）。",
+      "remainingDynamic": "若每次新发生也是一笔新销售：大约 {n} 次（动态情形）。",
+      "remainingZero": "任何新发生都会使区间变为{level}。",
+      "recover": "大约需要 {n} 笔无问题的新销售才能回到绿色区间。",
+      "estimateNote": "基于已同步销售的估算；新销售同样会增加分母。",
+      "official": "Mercado Livre（官方）：{pct} · {count} 次 · {period}",
+      "officialMissing": "Mercado Livre（官方）：无数据",
+      "divergence": "本地计算与 Mercado Livre 最新数据存在差异（{delta} 个百分点）。",
+      "noSales": "该周期无销售 — 指标未计算。",
+      "nearestLimit": "最接近上限"
+    },
+    "table": {
+      "account": "账户",
+      "sales60": "60天销量",
+      "sales365": "365天销量",
+      "period": "周期",
+      "risk": "风险",
+      "details": "详情",
+      "pending": "计算中…",
+      "error": "计算错误",
+      "accountFallback": "账户 {id}",
+      "id": "ID {id}"
+    },
+    "attention": {
+      "title": "需要关注的账户",
+      "empty": "目前没有账户需要关注 — 全部处于绿色区间且余量充足。",
+      "line": "{metric}：{pct} / {level}上限 {limit}",
+      "margin": "余量：{pp}"
+    },
+    "filters": {
+      "status": "区间",
+      "period": "周期",
+      "flag": "状态",
+      "sort": "排序",
+      "search": "按昵称或 ID 搜索…",
+      "all": "全部",
+      "near68": "接近 {threshold} 笔",
+      "withAlerts": "有提醒",
+      "sortRisk": "风险最高",
+      "sortWorst": "信誉最差",
+      "sortSalesDesc": "销量最多",
+      "sortSalesAsc": "销量最少",
+      "sortNear68": "最接近 {threshold} 笔",
+      "sortCancel": "取消率最高",
+      "sortClaims": "投诉率最高",
+      "sortShip": "错误发货率最高",
+      "noResults": "没有符合筛选条件的账户。"
+    },
+    "empty": {
+      "title": "未连接 Mercado Livre 账户",
+      "desc": "请在 设置 › 集成 中连接账户以跟踪信誉。",
+      "cta": "连接账户"
+    },
+    "rules": {
+      "title": "了解规则",
+      "close": "关闭",
+      "status": "状态",
+      "col60": "60 天",
+      "col365": "365 天",
+      "colPct": "百分比",
+      "upTo": "≤ {v}",
+      "between": "> {a} 至 {b}",
+      "above": "> {v}",
+      "effective": "新方法自 {date} 起生效。",
+      "periodRule": "考核周期：最近 {short} 天完成 {threshold} 笔或以上 → 按 {short} 天考核；少于 {threshold} 笔 → {long} 天。滚动窗口，自动重新计算。",
+      "legacyNote": "{date} 之前适用旧规则（{name}）。",
+      "riskRule": "预防性风险：达到当前区间余量的 {attention}% 为关注，{high}% 为高风险，{critical}% 或超过上限为严重。",
+      "claimsNote": "投诉在两个周期使用相同上限；分子与分母遵循账户适用的周期。"
+    },
+    "detail": {
+      "back": "返回全部账户",
+      "officialTitle": "Mercado Livre（官方）",
+      "officialDesc": "直接来自 Mercado Livre API 的数据",
+      "officialSynced": "同步于 {when}",
+      "officialNone": "尚无官方读数 — 请点击刷新。",
+      "internalTitle": "内部监控（SaaS）",
+      "internalDesc": "由 e-Click 根据已同步的订单、投诉和发货计算的指标。不替代官方信誉。",
+      "overallLevel": "最差区间",
+      "risk": "预防性风险",
+      "level": {
+        "5_green": "Mercado Líder Platinum",
+        "4_light_green": "Mercado Líder Gold",
+        "3_yellow": "Mercado Líder",
+        "2_orange": "无等级（橙色）",
+        "1_red": "红色信誉",
+        "0_red": "无信誉",
+        "unknown": "无数据"
+      },
+      "transactions": "{completed} 笔完成 · 共 {total} 笔（历史）",
+      "warningsTitle": "数据覆盖提示",
+      "divergenceTitle": "本地计算与 Mercado Livre 存在差异",
+      "divergenceDesc": "相关数值已记录以供诊断。在同步完成前请以官方数据为准。",
+      "historyTitle": "历史",
+      "historyEmpty": "暂无历史 — 下次计算将产生第一个数据点。",
+      "historyLocal": "计算值",
+      "historyOfficial": "ML 官方",
+      "range": "{days}天",
+      "eventsTitle": "近期事件",
+      "eventsEmpty": "暂无事件记录。"
+    },
+    "warnings": {
+      "orders_partial_coverage": "已同步的订单历史未覆盖整个窗口 — 分母可能被低估。",
+      "claims_no_data": "尚未同步任何投诉（投诉 webhook 为此指标提供数据）。",
+      "claims_partial_coverage": "投诉仅自 {since} 起同步 — 窗口覆盖不完整。",
+      "shipping_no_data": "尚未同步任何发货延迟（物流扫描器为此指标提供数据）。",
+      "shipping_partial_coverage": "发货延迟仅自 {since} 起同步 — 覆盖不完整。",
+      "cancel_detail_partial": "{total} 笔已取消订单中有 {with} 笔已识别责任方 — 其余不计入“由您取消”。"
+    },
+    "events": {
+      "level_changed": "{metric}：{from} → {to}",
+      "period_changed": "考核周期：{from} → {to} 天",
+      "near_limit": "{metric}接近上限（{to}）",
+      "back_to_safe": "{metric}回到安全余量"
+    },
+    "sim": {
+      "title": "模拟器（仅供查看）",
+      "desc": "预测新发生或新销售的影响。不会保存任何数据。",
+      "cancellations": "+ 取消",
+      "incorrectShipments": "+ 错误发货",
+      "claims": "+ 投诉",
+      "sales": "+ 无问题销售",
+      "addSales": "每次发生也计为一笔新销售",
+      "run": "模拟",
+      "running": "模拟中…",
+      "reset": "清除",
+      "result": "预测",
+      "from": "原 {pct}",
+      "levelChange": "{from} → {to}",
+      "same": "保持{level}",
+      "periodNote": "预测周期：{days} 天"
+    },
+    "audit": {
+      "title": "计算审计",
+      "calculatedAt": "计算时间 {when}",
+      "dataAsOf": "窗口截止 {when}",
+      "rule": "规则：{name}",
+      "period": "周期：{days} 天",
+      "sales": "计入销量：{n}",
+      "counts": "发生次数：{c} 取消 · {s} 发货 · {q} 投诉"
+    },
+    "a11y": {
+      "level": "区间 {level}",
+      "position": "当前位置：{pct}"
+    }
   }
 }
