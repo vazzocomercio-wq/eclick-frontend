@@ -328,7 +328,7 @@ export default function ReputationDashboardPage() {
                           <td className="px-3 py-3 text-sm font-semibold" style={{ fontVariantNumeric: 'tabular-nums' }}>
                             {fmtInt(r.salesLast60Days)}
                             {r.measurementPeriod === r.longPeriodDays && (
-                              <div style={{ width: 120, marginTop: 4 }}><ProgressToShort r={r} t={t} compact /></div>
+                              <div style={{ width: 132, marginTop: 4 }}><ProgressToShort r={r} t={t} compact /></div>
                             )}
                           </td>
                           <td className="px-3 py-3 text-sm" style={{ fontVariantNumeric: 'tabular-nums', color: '#a1a1aa' }}>{fmtInt(r.salesLast365Days)}</td>

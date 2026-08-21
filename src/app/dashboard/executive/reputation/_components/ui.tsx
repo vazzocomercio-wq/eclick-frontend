@@ -153,10 +153,11 @@ export function ProgressToShort({ r, t, compact = false }: { r: ReputationResult
   const pct = Math.min(100, (sales / Math.max(1, threshold)) * 100)
   const reached = sales >= threshold
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#a1a1aa', marginBottom: 4 }}>
+    <div title={compact && !reached ? t('period.missing', { n: r.salesUntilShortPeriod, short: r.shortPeriodDays }) : undefined}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11, color: '#a1a1aa', marginBottom: 4, whiteSpace: 'nowrap' }}>
         <span>{t('period.progress', { sales: fmtInt(sales), threshold })}</span>
-        {!reached && <span style={{ color: '#fafafa', fontWeight: 600 }}>{t('period.missing', { n: r.salesUntilShortPeriod, short: r.shortPeriodDays })}</span>}
+        {/* No modo compacto (célula da tabela) a frase "Faltam N vendas…" vai no title — não cabe na coluna. */}
+        {!reached && !compact && <span style={{ color: '#fafafa', fontWeight: 600 }}>{t('period.missing', { n: r.salesUntilShortPeriod, short: r.shortPeriodDays })}</span>}
       </div>
       <div role="progressbar" aria-valuemin={0} aria-valuemax={threshold} aria-valuenow={Math.min(sales, threshold)}
         style={{ height: compact ? 5 : 8, borderRadius: 999, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
