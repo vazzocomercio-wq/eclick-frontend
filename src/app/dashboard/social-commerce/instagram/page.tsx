@@ -13,6 +13,7 @@ import {
   type SocialCommerceProduct,
   type MetaPage,
   type MetaCatalog,
+  type MetaTokenHealthConfig,
 } from '@/components/social-commerce/socialCommerceApi'
 import { useConfirm } from '@/components/ui/dialog-provider'
 
@@ -38,6 +39,32 @@ export default function InstagramShopPage() {
   // Sync state
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ synced: number; failed: number; skipped: number } | null>(null)
+
+  // Saúde do token Meta. `token_alert` é gravado em config pelo cron do
+  // backend; `checkedAlert` guarda o resultado do botão "Verificar
+  // conexão" (que roda o /debug_token na hora, sem esperar o cron).
+  const [checkingToken, setCheckingToken] = useState(false)
+  const [checkedAlert, setCheckedAlert] = useState<string | null | undefined>(undefined)
+  const [tokenOk, setTokenOk] = useState(false)
+
+  const cfg = (status?.channel?.config ?? {}) as MetaTokenHealthConfig
+  // Depois de verificar manualmente, o resultado novo manda; antes disso,
+  // vale o que o cron gravou.
+  const tokenAlert = checkedAlert !== undefined ? checkedAlert : (cfg.token_alert ?? null)
+
+  async function checkToken() {
+    setCheckingToken(true); setError(null); setTokenOk(false)
+    try {
+      const r = await SocialCommerceApi.checkMetaToken()
+      setCheckedAlert(r.alert)
+      if (!r.alert) setTokenOk(true)
+      await refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setCheckingToken(false)
+    }
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true); setError(null)
@@ -154,6 +181,44 @@ export default function InstagramShopPage() {
       {error && (
         <div className="rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-300 flex items-start gap-2">
           <AlertCircle size={14} className="mt-0.5 shrink-0" /> {error}
+        </div>
+      )}
+
+      {/* Saúde do token Meta. O texto vem pronto do backend (cron
+          checkMetaTokenHealth, 06:00 BRT) porque a regra de qual data
+          vence primeiro — expiração ou data access — mora lá. */}
+      {!loading && tokenAlert && (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-300" />
+            <div>
+              <p className="text-sm font-medium text-amber-200">{t('tokenAlertTitle')}</p>
+              <p className="text-xs text-amber-200/80 mt-1">{tokenAlert}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={connect}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#0563d6] text-white text-xs font-medium"
+            >
+              <Plug size={12} /> {t('reconnectMeta')}
+            </button>
+            <button
+              onClick={checkToken}
+              disabled={checkingToken}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-xs disabled:opacity-50"
+            >
+              {checkingToken
+                ? <><Loader2 size={12} className="animate-spin" /> {t('checking')}</>
+                : <><RefreshCw size={12} /> {t('checkConnection')}</>}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tokenOk && (
+        <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200 flex items-center gap-2">
+          <Check size={14} /> {t('connectionOk')}
         </div>
       )}
 

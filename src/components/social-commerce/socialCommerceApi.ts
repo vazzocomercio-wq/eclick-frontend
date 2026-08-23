@@ -39,7 +39,22 @@ export interface InstagramStatus {
     last_error:          string | null
     products_synced:     number
     sync_errors:         number
+    /** Validade REAL do token (do /debug_token). null = não expira —
+     *  o que NÃO quer dizer eterno: quem derruba é o data access, em
+     *  config.token_data_access_expires_at. */
+    token_expires_at:    string | null
   }
+}
+
+/** Campos de saúde do token gravados em `channel.config` pelo cron
+ *  `checkMetaTokenHealth` (06:00 BRT) e pelo botão "Verificar conexão". */
+export interface MetaTokenHealthConfig {
+  token_checked_at?:             string
+  token_valid?:                  boolean
+  token_data_access_expires_at?: string | null
+  token_scopes?:                 string[]
+  /** Aviso já pronto em PT-BR, ou null/ausente quando está tudo bem. */
+  token_alert?:                  string | null
 }
 
 export interface MetaPage {
@@ -88,6 +103,12 @@ export const SocialCommerceApi = {
   // Status / setup
   getInstagramStatus: () =>
     api<InstagramStatus>('/social-commerce/instagram/status'),
+
+  /** Verifica a conexão com a Meta agora (sem esperar o cron das 06:00). */
+  checkMetaToken: () =>
+    api<{ alert: string | null; valid: boolean; data_access_expires_at: string | null }>(
+      '/social-commerce/meta/token-health', { method: 'POST' },
+    ),
 
   listPages: () =>
     api<MetaPage[]>('/social-commerce/instagram/pages'),

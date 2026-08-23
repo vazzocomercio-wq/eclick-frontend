@@ -12488,7 +12488,12 @@
       "error": "error",
       "rejected": "rejected",
       "paused": "paused"
-    }
+    },
+    "tokenAlertTitle": "Meta connection",
+    "checkConnection": "Check connection",
+    "checking": "Checking…",
+    "connectionOk": "Meta connection is healthy.",
+    "reconnectMeta": "Reconnect Meta"
   },
   "store": {
     "config": {

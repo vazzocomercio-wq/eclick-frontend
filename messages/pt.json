@@ -12659,7 +12659,12 @@
       "error": "erro",
       "rejected": "rejeitado",
       "paused": "pausado"
-    }
+    },
+    "tokenAlertTitle": "Conexão com a Meta",
+    "checkConnection": "Verificar conexão",
+    "checking": "Verificando…",
+    "connectionOk": "Conexão com a Meta está saudável.",
+    "reconnectMeta": "Reconectar Meta"
   },
   "store": {
     "config": {

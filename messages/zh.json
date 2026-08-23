@@ -12482,7 +12482,12 @@
       "error": "错误",
       "rejected": "已拒绝",
       "paused": "已暂停"
-    }
+    },
+    "tokenAlertTitle": "Meta 连接",
+    "checkConnection": "检查连接",
+    "checking": "检查中…",
+    "connectionOk": "Meta 连接正常。",
+    "reconnectMeta": "重新连接 Meta"
   },
   "store": {
     "config": {
