@@ -74,13 +74,7 @@
       .catch(function () { return null; });
   }
 
-  var ids = idsNaTela();
-  if (!ids.length) {
-    ui('Nenhum pedido nesta tela. Abra <b>Meus Pedidos → A Enviar</b> e clique de novo.', '#fcd34d');
-    return;
-  }
-
-  ui('Lendo ' + ids.length + ' pedido(s) da tela…');
+  var ids = [];
   var coletados = [];
   var i = 0;
 
@@ -95,7 +89,8 @@
 
   function enviar() {
     if (!coletados.length) {
-      ui('Li os pedidos, mas nenhum endereço veio aberto. Confirme que está na aba <b>A Enviar</b>.', '#fcd34d');
+      ui('Li os pedidos, mas nenhum endereço veio aberto. Confirme que está na aba <b>A Enviar</b>.' + rodapeAuto(), '#fcd34d');
+      agendar();
       return;
     }
     ui('Enviando ' + coletados.length + ' endereço(s) pro e-Click…');
@@ -109,14 +104,51 @@
         if (!res.ok) throw new Error((res.j && (res.j.message || res.j.error)) || 'falha no envio');
         var n = res.j.updated || 0;
         var erros = (res.j.errors || []);
+        window.__eclickUltima = new Date();
         ui('✓ <b>' + n + ' pedido(s)</b> com endereço pronto no e-Click.' +
           (erros.length ? '<br><span style="color:#fcd34d">' + erros.length + ' aviso(s): ' + erros.slice(0, 3).join(' · ') + '</span>' : '') +
-          '<br><br>Volte ao e-Click e clique em <b>Emitir NF-e</b>.', '#4ADE50');
+          rodapeAuto(), '#4ADE50');
+        agendar();
       })
       .catch(function (e) {
         ui('Falhou ao enviar: ' + e.message + '<br><br>Se falar em sessão/expirado, gere o coletor de novo no e-Click.', '#f87171');
+        agendar();   // erro de rede não deve matar a vigilância
       });
   }
 
-  proximo();
+  // ── modo vigia: enquanto esta aba ficar aberta, recoleta sozinho ──────────
+  // A Shopee só abre o endereço na tela do vendedor, então a coleta TEM de
+  // rodar aqui. Em vez de exigir um clique por pedido, o coletor se reagenda:
+  // deixe a aba aberta e os pedidos novos entram no e-Click sozinhos.
+  var INTERVALO_MIN = 10;
+
+  function rodapeAuto() {
+    return '<br><br><span style="color:#71717a">Vigiando esta aba — recoleto a cada ' +
+      INTERVALO_MIN + ' min. Pode deixar aberta.</span>';
+  }
+
+  function agendar() {
+    if (window.__eclickTimer) clearTimeout(window.__eclickTimer);
+    window.__eclickTimer = setTimeout(function () {
+      // aba escondida: espera voltar ao primeiro plano pra não gastar sessão à toa
+      if (document.hidden) { agendar(); return; }
+      coletar();
+    }, INTERVALO_MIN * 60 * 1000);
+  }
+
+  function coletar() {
+    ids = idsNaTela();
+    coletados = [];
+    i = 0;
+    if (!ids.length) {
+      ui('Nenhum pedido em "A Enviar" agora.' + rodapeAuto(), '#a1a1aa');
+      agendar();
+      return;
+    }
+    proximo();
+  }
+
+  // já havia um vigia rodando? troca pelo novo (evita 2 timers)
+  if (window.__eclickTimer) clearTimeout(window.__eclickTimer);
+  coletar();
 })();

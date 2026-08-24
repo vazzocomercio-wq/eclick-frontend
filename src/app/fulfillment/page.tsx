@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2, Tv, Truck, Box, MapPin, ShoppingCart } from 'lucide-react'
+import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2, Tv, Truck, Box, MapPin, ShoppingCart, FileText } from 'lucide-react'
 import { fulfillmentApi, type Warehouse, type DashboardData } from './_lib/api'
 import { SettingsSheet } from './_components/SettingsSheet'
 import { TeamSheet } from './_components/TeamSheet'
@@ -68,6 +68,10 @@ export default function FulfillmentHub() {
           <p className="text-sm" style={{ color: '#71717a' }}>Centro de distribuição</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* F2b-6 — fila fiscal: pedidos aguardando NF-e */}
+          <Link href="/fulfillment/fiscal" className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Notas fiscais">
+            <FileText size={18} color="#00E5FF" />
+          </Link>
           <button onClick={() => setShowCompanies(true)} className="rounded-xl p-3" style={{ background: '#18181b' }} aria-label="Empresas e contas">
             <Building2 size={18} color="#a1a1aa" />
           </button>

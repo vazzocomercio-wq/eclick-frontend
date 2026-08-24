@@ -223,6 +223,24 @@ export interface FulfillmentAccount {
 export type FiscalProvider = 'nfeio' | 'focusnfe' | 'plugnotas' | 'erp_externo'
 export type FiscalEnvironment = 'homologacao' | 'producao'
 export type RegimeTributario = 'simples' | 'presumido' | 'real' | 'mei'
+
+// ── Fila fiscal (F2b-6) ─────────────────────────────────────────────────────
+export interface FilaFiscalPedido {
+  orderSn: string
+  comprador: string | null
+  valor: number
+  loja: string | null
+  temEndereco: boolean
+  temDoc: boolean
+  semNcm: string[]
+  nota: { number: string | null; chave: string | null; noMarketplace: boolean } | null
+  pronto: boolean
+  falta: string[]
+}
+export interface FilaFiscal {
+  pedidos: FilaFiscalPedido[]
+  resumo: { total: number; prontos: number; jaEmitidos: number; bloqueados: number }
+}
 export interface CompanyFiscalConfig {
   id: string
   company_id: string
@@ -382,6 +400,15 @@ export const fulfillmentApi = {
     api<{ ok: boolean; cStat: string | null; xMotivo: string | null; uf: string; ambiente: string }>(`/fulfillment/fiscal/companies/${companyId}/sefaz-status`),
   emitTestNfe: (companyId: string) =>
     api<{ authorized: boolean; cStat: string | null; xMotivo: string | null; chave: string | null; protocolo: string | null }>(`/fulfillment/fiscal/companies/${companyId}/test-emit`, { method: 'POST' }),
+  // F2b-6 — fila fiscal: pedidos na janela de despacho + o que falta em cada um
+  filaFiscal: () => api<FilaFiscal>('/fulfillment/fiscal/fila'),
+  emitirLote: (orderSns?: string[]) =>
+    api<{ emitidas: number; falhas: Array<{ pedido: string; erro: string }>; notas: Array<{ pedido: string; numero: number | null; chave: string | null; noMarketplace: boolean }> }>(
+      '/fulfillment/fiscal/emitir-lote', { method: 'POST', body: JSON.stringify({ orderSns }) }),
+  reenviarMarketplace: () =>
+    api<{ tentadas: number; enviadas: number; falhas: Array<{ pedido: string; erro: string }> }>(
+      '/fulfillment/fiscal/reenviar-marketplace', { method: 'POST' }),
+
   // F2b-3 — emissão REAL de NF-e de um pedido de marketplace (dryRun = só monta o XML, não emite)
   // dest = override do destinatário quando a plataforma mascara (Shopee: endereço só abre pós-envio)
   emitOrderNfe: (externalOrderId: string, dryRun: boolean, dest?: Record<string, string>) =>
