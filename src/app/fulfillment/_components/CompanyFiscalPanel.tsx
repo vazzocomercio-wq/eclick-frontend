@@ -39,6 +39,10 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
   const [orderSn, setOrderSn] = useState('')
   const [orderEmit, setOrderEmit] = useState<{ authorized: boolean; dryRun?: boolean; cStat: string | null; xMotivo: string | null; chave: string | null; protocolo: string | null; nNF: number | null; serie?: number; xml?: string } | null>(null)
   const [orderBusy, setOrderBusy] = useState<'dry' | 'emit' | null>(null)
+  // override do destinatário (quando a Shopee mascara o endereço — ver no detalhe do pedido)
+  const [showDest, setShowDest] = useState(false)
+  const [dest, setDest] = useState<Record<string, string>>({})
+  const setD = (k: string, v: string) => setDest((p) => ({ ...p, [k]: v }))
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -79,8 +83,16 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
     // emissão de verdade é irreversível (consome número da série) — confirmar
     if (!dryRun && !window.confirm(`Emitir NF-e REAL do pedido ${orderSn.trim()} em ${cfg?.environment === 'producao' ? 'PRODUÇÃO' : 'homologação'}?`)) return
     setOrderBusy(dryRun ? 'dry' : 'emit'); setErr(null); setOrderEmit(null)
-    try { setOrderEmit(await fulfillmentApi.emitOrderNfe(orderSn.trim(), dryRun)) }
-    catch (e) { setErr((e as Error).message) } finally { setOrderBusy(null) }
+    // só manda os campos preenchidos do override
+    const cleanDest = Object.fromEntries(Object.entries(dest).filter(([, v]) => v?.trim()))
+    const destArg = Object.keys(cleanDest).length ? cleanDest : undefined
+    try { setOrderEmit(await fulfillmentApi.emitOrderNfe(orderSn.trim(), dryRun, destArg)) }
+    catch (e) {
+      const msg = (e as Error).message
+      // a Shopee mascara o endereço até organizar o envio → abre o formulário manual
+      if (/ENDERECO_INCOMPLETO|CPF\/CNPJ do comprador/i.test(msg)) setShowDest(true)
+      setErr(msg)
+    } finally { setOrderBusy(null) }
   }
   useEffect(() => { void reload() }, [reload])
 
@@ -203,6 +215,32 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
               {orderBusy === 'emit' ? <Loader2 size={13} className="animate-spin" /> : 'Emitir NF-e'}
             </button>
           </div>
+
+          {/* Override do destinatário — a Shopee mascara o endereço até organizar o
+              envio (que exige a NF). Copie do "Verifique os detalhes" do pedido. */}
+          <button onClick={() => setShowDest((v) => !v)} className="mt-2 text-[11px] underline" style={{ color: '#a5f3fc' }}>
+            {showDest ? 'Ocultar' : 'Informar'} endereço do comprador (se a Shopee mascarou)
+          </button>
+          {showDest && (
+            <div className="mt-2 flex flex-col gap-1.5 rounded-lg p-2" style={{ background: '#09090b', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <p className="text-[10px]" style={{ color: '#71717a' }}>Copie do detalhe do pedido na Shopee (&quot;Verifique os detalhes&quot;). Preencha só quando a prévia acusar endereço mascarado.</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                <input value={dest.name ?? ''} onChange={(e) => setD('name', e.target.value)} placeholder="Nome do comprador" className="rounded-lg px-2 py-1.5 text-xs outline-none" style={inp} />
+                <input value={dest.doc ?? ''} onChange={(e) => setD('doc', e.target.value)} placeholder="CPF/CNPJ" className="rounded-lg px-2 py-1.5 text-xs outline-none" style={inp} />
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <input value={dest.logradouro ?? ''} onChange={(e) => setD('logradouro', e.target.value)} placeholder="Logradouro" className="col-span-2 rounded-lg px-2 py-1.5 text-xs outline-none" style={inp} />
+                <input value={dest.numero ?? ''} onChange={(e) => setD('numero', e.target.value)} placeholder="Número" className="rounded-lg px-2 py-1.5 text-xs outline-none" style={inp} />
+              </div>
+              <input value={dest.complemento ?? ''} onChange={(e) => setD('complemento', e.target.value)} placeholder="Complemento (apto/bloco — opcional)" className="rounded-lg px-2 py-1.5 text-xs outline-none" style={inp} />
+              <div className="grid grid-cols-4 gap-1.5">
+                <input value={dest.bairro ?? ''} onChange={(e) => setD('bairro', e.target.value)} placeholder="Bairro" className="rounded-lg px-2 py-1.5 text-xs outline-none" style={inp} />
+                <input value={dest.cidade ?? ''} onChange={(e) => setD('cidade', e.target.value)} placeholder="Cidade" className="rounded-lg px-2 py-1.5 text-xs outline-none" style={inp} />
+                <input value={dest.uf ?? ''} maxLength={2} onChange={(e) => setD('uf', e.target.value.toUpperCase())} placeholder="UF" className="rounded-lg px-2 py-1.5 text-center text-xs uppercase outline-none" style={inp} />
+                <input value={dest.cep ?? ''} onChange={(e) => setD('cep', e.target.value)} placeholder="CEP" className="rounded-lg px-2 py-1.5 text-xs outline-none" style={inp} />
+              </div>
+            </div>
+          )}
           {orderEmit && (
             <div className="mt-2 text-xs font-semibold leading-relaxed" style={{ color: orderEmit.authorized ? '#4ADE50' : orderEmit.dryRun ? '#a5f3fc' : '#fcd34d' }}>
               {orderEmit.dryRun ? '👁 Prévia montada' : orderEmit.authorized ? '✓ AUTORIZADA!' : '⚠'} {orderEmit.cStat ? `cStat ${orderEmit.cStat}: ` : ''}{orderEmit.xMotivo}

@@ -383,9 +383,10 @@ export const fulfillmentApi = {
   emitTestNfe: (companyId: string) =>
     api<{ authorized: boolean; cStat: string | null; xMotivo: string | null; chave: string | null; protocolo: string | null }>(`/fulfillment/fiscal/companies/${companyId}/test-emit`, { method: 'POST' }),
   // F2b-3 — emissão REAL de NF-e de um pedido de marketplace (dryRun = só monta o XML, não emite)
-  emitOrderNfe: (externalOrderId: string, dryRun: boolean) =>
+  // dest = override do destinatário quando a plataforma mascara (Shopee: endereço só abre pós-envio)
+  emitOrderNfe: (externalOrderId: string, dryRun: boolean, dest?: Record<string, string>) =>
     api<{ authorized: boolean; dryRun?: boolean; cStat: string | null; xMotivo: string | null; chave: string | null; protocolo: string | null; nNF: number | null; serie: number; xml?: string }>(
-      '/fulfillment/fiscal/emit', { method: 'POST', body: JSON.stringify({ externalOrderId, dryRun }) }),
+      '/fulfillment/fiscal/emit', { method: 'POST', body: JSON.stringify({ externalOrderId, dryRun, dest }) }),
 
   returns: (wid?: string) => api<FulfillmentReturn[]>(`/fulfillment/returns${wid ? `?warehouse_id=${wid}` : ''}`),
   registerReturn: (body: { warehouseId?: string; fulfillmentOrderId?: string; reference?: string; customer?: Record<string, unknown>; reason?: string; items?: Array<{ sku: string; productId?: string; qty: number; title?: string }> }) =>
