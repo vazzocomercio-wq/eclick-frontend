@@ -1,17 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, CheckCircle2, AlertTriangle, FileText, RefreshCw, Upload } from 'lucide-react'
-import { fulfillmentApi, type FilaFiscal } from '../_lib/api'
+import { Loader2, CheckCircle2, AlertTriangle, FileText, RefreshCw, Upload, MapPin, IdCard, Package, ArrowRight } from 'lucide-react'
+import { fulfillmentApi, type FilaFiscal, type FilaFiscalPedido } from '../_lib/api'
 
 /**
  * FILA FISCAL (F2b-6) — a tela de trabalho do faturamento.
  *
- * Lista os pedidos que estão na JANELA de despacho (pagos, ainda não enviados)
- * com um semáforo do que falta pra virar nota: endereço do comprador (que a
- * Shopee só abre na tela dela — vem pelo coletor), CPF e NCM do produto.
- * O que está verde vai num clique só; o que está vermelho mostra o motivo.
+ * Leitura em 3 blocos, na ordem do que o operador precisa fazer:
+ *   1. AGIR    — quantos estão prontos + o botão que emite tudo
+ *   2. RESOLVER — os que faltam dado (com o dado que falta em destaque)
+ *   3. FEITO   — os já faturados (e se a nota subiu pro marketplace)
+ *
+ * As funções são as mesmas — este arquivo mudou só de apresentação.
  */
+
+// tokens do e-Click (mesmos hex usados no resto do módulo Fulfillment)
+const CARD = { background: '#18181b', border: '1px solid #27272a' } as const
+const CIANO = '#00E5FF', VERDE = '#4ADE50', AMBAR = '#fcd34d', VERMELHO = '#f87171'
+const TXT = '#FAFAFA', TXT2 = '#A1A1AA', TXT3 = '#71717A'
+
 export function FilaFiscalPanel() {
   const [fila, setFila] = useState<FilaFiscal | null>(null)
   const [loading, setLoading] = useState(true)
@@ -69,84 +77,227 @@ export function FilaFiscalPanel() {
     } catch (e) { setErr((e as Error).message) } finally { setBusy(null) }
   }
 
-  if (loading) return <div className="grid place-items-center py-6"><Loader2 size={18} className="animate-spin" color="#00E5FF" /></div>
+  if (loading) return <Esqueleto />
 
-  const r = fila?.resumo
+  const pedidos = fila?.pedidos ?? []
+  const prontos = pedidos.filter((p) => p.pronto)
+  const bloqueados = pedidos.filter((p) => !p.nota && !p.pronto)
+  const faturados = pedidos.filter((p) => !!p.nota)
+  const somaProntos = prontos.reduce((s, p) => s + p.valor, 0)
+  const naShopeePendente = faturados.filter((p) => !p.nota?.noMarketplace).length
+
   return (
-    <div className="flex flex-col gap-3">
-      {err && <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      {resultado && <div className="rounded-lg p-3 text-sm" style={{ background: 'rgba(74,222,80,0.10)', color: '#4ADE50' }}>{resultado}</div>}
+    <div className="flex flex-col gap-4">
+      {err && <Aviso cor={VERMELHO} texto={err} />}
+      {resultado && <Aviso cor={VERDE} texto={resultado} />}
 
-      {/* placar */}
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { t: 'Na janela', v: r?.total ?? 0, c: '#fafafa' },
-          { t: 'Prontos', v: r?.prontos ?? 0, c: '#4ADE50' },
-          { t: 'Já emitidos', v: r?.jaEmitidos ?? 0, c: '#00E5FF' },
-          { t: 'Bloqueados', v: r?.bloqueados ?? 0, c: '#fcd34d' },
-        ].map((k) => (
-          <div key={k.t} className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="text-2xl font-bold" style={{ color: k.c }}>{k.v}</div>
-            <div className="text-[11px]" style={{ color: '#71717a' }}>{k.t}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <button onClick={emitirLote} disabled={busy != null || !(r?.prontos)} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-40" style={{ background: '#00E5FF', color: '#04222a' }}>
-          {busy === 'lote' ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-          Emitir {r?.prontos ?? 0} nota(s)
-        </button>
-        <button onClick={reenviar} disabled={busy != null} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: '#18181b', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>
-          {busy === 'reenvio' ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Reenviar pendentes à Shopee
-        </button>
-        <button onClick={carregar} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs" style={{ background: '#18181b', color: '#a1a1aa', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <RefreshCw size={13} /> Atualizar
-        </button>
-      </div>
-
-      {/* lista */}
-      <div className="flex flex-col gap-1.5">
-        {(fila?.pedidos ?? []).length === 0 && (
-          <p className="py-6 text-center text-sm" style={{ color: '#52525b' }}>Nenhum pedido aguardando nota agora.</p>
-        )}
-        {(fila?.pedidos ?? []).map((p) => {
-          const cor = p.nota ? '#00E5FF' : p.pronto ? '#4ADE50' : '#fcd34d'
-          return (
-            <div key={p.orderSn} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: '#111114', border: `1px solid ${cor}22` }}>
-              <div style={{ color: cor }}>
-                {p.nota ? <FileText size={16} /> : p.pronto ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-sm font-semibold" style={{ color: '#fafafa' }}>{p.comprador ?? '—'}</span>
-                  <span className="text-[11px]" style={{ color: '#52525b' }}>{p.orderSn}</span>
-                </div>
-                <div className="text-[11px]" style={{ color: cor }}>
-                  {p.nota
-                    ? `NF ${p.nota.number} emitida · ${p.nota.noMarketplace ? 'na Shopee ✓' : 'ainda não subiu pra Shopee'}`
-                    : p.pronto ? 'pronto pra emitir' : `falta: ${p.falta.join(', ')}`}
-                </div>
-              </div>
-              <div className="text-sm font-bold" style={{ color: '#fafafa' }}>R$ {p.valor.toFixed(2)}</div>
-              {/* cancelar só enquanto a SEFAZ aceita (24h) — depois é devolução */}
-              {p.nota?.podeCancelar && (
-                <button onClick={() => cancelar({ orderSn: p.orderSn, valor: p.valor, nota: p.nota! })} disabled={busy != null}
-                  title={`Cancelar NF ${p.nota.number} — restam ~${p.nota.horasPraCancelar}h`}
-                  className="rounded-lg px-2 py-1 text-[10px] font-semibold disabled:opacity-40"
-                  style={{ background: '#18181b', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
-                  Cancelar ({p.nota.horasPraCancelar}h)
-                </button>
-              )}
+      {/* ── 1. AGIR ─────────────────────────────────────────────────────── */}
+      <section className="rounded-2xl p-5" style={{ background: '#121214', border: `1px solid ${prontos.length ? 'rgba(74,222,80,0.35)' : '#27272a'}` }}>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold tabular-nums" style={{ color: prontos.length ? VERDE : TXT3 }}>{prontos.length}</span>
+              <span className="text-base font-semibold" style={{ color: TXT }}>
+                {prontos.length === 1 ? 'pedido pronto pra faturar' : 'pedidos prontos pra faturar'}
+              </span>
             </div>
-          )
-        })}
-      </div>
+            {prontos.length > 0 && (
+              <p className="mt-1 text-sm tabular-nums" style={{ color: TXT2 }}>
+                Total das notas: <b style={{ color: TXT }}>R$ {somaProntos.toFixed(2)}</b>
+              </p>
+            )}
+            {prontos.length === 0 && (
+              <p className="mt-1 text-sm" style={{ color: TXT3 }}>
+                {bloqueados.length ? 'Resolva os pendentes abaixo pra liberar a emissão.' : 'Nada aguardando nota agora.'}
+              </p>
+            )}
+          </div>
 
-      <p className="text-[11px] leading-relaxed" style={{ color: '#52525b' }}>
-        O endereço do comprador só existe na tela da Shopee — deixe a aba <b>Meus Pedidos → A Enviar</b> aberta com o coletor
-        ligado e os pedidos entram aqui sozinhos. Emitida a nota, ela sobe pra Shopee automaticamente e o <b>Organizar Envio</b> libera.
-      </p>
+          <button
+            onClick={emitirLote}
+            disabled={busy != null || prontos.length === 0}
+            className="flex items-center gap-2 rounded-xl px-6 py-3.5 text-base font-bold transition-opacity duration-200 hover:opacity-90 focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-30"
+            style={{ background: VERDE, color: '#052e12' }}
+          >
+            {busy === 'lote' ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
+            Emitir {prontos.length > 0 ? prontos.length : ''} {prontos.length === 1 ? 'nota' : 'notas'}
+          </button>
+        </div>
+
+        {/* ações de apoio — visualmente secundárias */}
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: '#27272a' }}>
+          <button onClick={carregar} disabled={busy != null}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors duration-150 hover:brightness-125 disabled:opacity-40"
+            style={{ background: '#18181b', color: TXT2, border: '1px solid #27272a' }}>
+            <RefreshCw size={13} /> Atualizar
+          </button>
+          <button onClick={reenviar} disabled={busy != null}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors duration-150 hover:brightness-125 disabled:opacity-40"
+            style={{ background: '#18181b', color: naShopeePendente ? AMBAR : TXT2, border: `1px solid ${naShopeePendente ? 'rgba(252,211,77,0.3)' : '#27272a'}` }}>
+            {busy === 'reenvio' ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+            Reenviar à Shopee {naShopeePendente ? `(${naShopeePendente})` : ''}
+          </button>
+        </div>
+      </section>
+
+      {/* ── 2. RESOLVER ─────────────────────────────────────────────────── */}
+      {bloqueados.length > 0 && (
+        <Secao titulo="Falta dado pra emitir" cor={AMBAR} n={bloqueados.length}
+          ajuda="Enquanto faltar, o pedido não entra no lote.">
+          {bloqueados.map((p, i) => (
+            <Linha key={p.orderSn} p={p} cor={AMBAR} delay={i}>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {p.falta.map((f) => <Chip key={f} texto={f} />)}
+              </div>
+            </Linha>
+          ))}
+        </Secao>
+      )}
+
+      {/* ── 3. PRONTOS (detalhe do que vai no lote) ──────────────────────── */}
+      {prontos.length > 0 && (
+        <Secao titulo="Entram no próximo lote" cor={VERDE} n={prontos.length}
+          ajuda="Endereço, CPF e dados fiscais conferidos.">
+          {prontos.map((p, i) => (
+            <Linha key={p.orderSn} p={p} cor={VERDE} delay={i}>
+              <span className="mt-1 block text-xs" style={{ color: VERDE }}>pronto</span>
+            </Linha>
+          ))}
+        </Secao>
+      )}
+
+      {/* ── 4. FEITO ─────────────────────────────────────────────────────── */}
+      {faturados.length > 0 && (
+        <Secao titulo="Já faturados" cor={CIANO} n={faturados.length}
+          ajuda="A nota libera o “Organizar Envio” na Shopee.">
+          {faturados.map((p, i) => (
+            <Linha key={p.orderSn} p={p} cor={CIANO} delay={i}
+              acao={p.nota?.podeCancelar ? (
+                <button onClick={() => cancelar({ orderSn: p.orderSn, valor: p.valor, nota: p.nota! })} disabled={busy != null}
+                  title={`Cancelar NF ${p.nota.number} — restam ~${p.nota.horasPraCancelar}h do prazo da SEFAZ`}
+                  className="shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors duration-150 hover:brightness-125 disabled:opacity-40"
+                  style={{ background: '#18181b', color: VERMELHO, border: '1px solid rgba(248,113,113,0.3)' }}>
+                  Cancelar · {p.nota.horasPraCancelar}h
+                </button>
+              ) : undefined}
+            >
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                <span style={{ color: CIANO }}>NF {p.nota?.number}</span>
+                <span style={{ color: TXT3 }}>·</span>
+                {p.nota?.noMarketplace
+                  ? <span style={{ color: VERDE }}>enviada à Shopee ✓</span>
+                  : <span style={{ color: AMBAR }}>ainda não subiu à Shopee</span>}
+              </div>
+            </Linha>
+          ))}
+        </Secao>
+      )}
+
+      {/* vazio — orienta em vez de só informar */}
+      {pedidos.length === 0 && (
+        <div className="rounded-2xl px-6 py-10 text-center" style={CARD}>
+          <Package size={30} className="mx-auto mb-3" color="#3f3f46" />
+          <p className="text-sm font-semibold" style={{ color: TXT2 }}>Nenhum pedido aguardando nota.</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed" style={{ color: TXT3 }}>
+            Assim que uma venda entra em <b>A Enviar</b> na Shopee, ela aparece aqui.
+            Deixe a aba da Shopee aberta com o coletor ligado — o endereço do comprador chega sozinho.
+          </p>
+        </div>
+      )}
+
+      {/* como funciona — rodapé em 3 passos */}
+      <div className="rounded-2xl p-4" style={CARD}>
+        <p className="mb-3 text-xs font-semibold" style={{ color: TXT2 }}>Como o faturamento funciona</p>
+        <ol className="flex flex-col gap-2.5">
+          {[
+            { i: <MapPin size={14} />, t: 'Endereço vem da Shopee', d: 'A Shopee só mostra o endereço na tela dela. Deixe a aba “A Enviar” aberta com o coletor — ele traz sozinho a cada 10 min.' },
+            { i: <FileText size={14} />, t: 'Você confere e emite', d: 'O que estiver verde entra no lote. A emissão é definitiva — dá pra cancelar em até 24h.' },
+            { i: <Upload size={14} />, t: 'A nota volta pra Shopee', d: 'Emitida, ela sobe automaticamente e o “Organizar Envio” libera.' },
+          ].map((s, i) => (
+            <li key={s.t} className="flex gap-3">
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg" style={{ background: '#09090b', color: CIANO, border: '1px solid #27272a' }}>{s.i}</span>
+              <span className="min-w-0">
+                <b className="text-xs" style={{ color: TXT }}>{i + 1}. {s.t}</b>
+                <span className="block text-[11px] leading-relaxed" style={{ color: TXT3 }}>{s.d}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  )
+}
+
+// ── peças ──────────────────────────────────────────────────────────────────
+
+function Secao({ titulo, cor, n, ajuda, children }: { titulo: string; cor: string; n: number; ajuda: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <div className="mb-2 flex items-baseline gap-2 px-1">
+        <span className="h-2 w-2 rounded-full" style={{ background: cor }} />
+        <h2 className="text-sm font-bold" style={{ color: TXT }}>{titulo}</h2>
+        <span className="rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums" style={{ background: `${cor}1a`, color: cor }}>{n}</span>
+        <span className="ml-auto hidden text-[11px] sm:block" style={{ color: TXT3 }}>{ajuda}</span>
+      </div>
+      <div className="flex flex-col gap-1.5">{children}</div>
+    </section>
+  )
+}
+
+/** Linha do pedido: identidade à esquerda, dinheiro à direita, ação no fim. */
+function Linha({ p, cor, delay, children, acao }: {
+  p: FilaFiscalPedido; cor: string; delay: number; children?: React.ReactNode; acao?: React.ReactNode
+}) {
+  const Icone = cor === VERDE ? CheckCircle2 : cor === AMBAR ? AlertTriangle : FileText
+  return (
+    <div
+      className="flex items-start gap-3 rounded-xl px-4 py-3 transition-colors duration-150 hover:brightness-110"
+      style={{ background: '#18181b', borderLeft: `3px solid ${cor}`, border: '1px solid #27272a', borderLeftWidth: 3, borderLeftColor: cor, animation: `fadeUp .25s ease-out ${Math.min(delay, 8) * 35}ms both` }}
+    >
+      <Icone size={16} color={cor} className="mt-0.5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <span className="truncate text-sm font-semibold" style={{ color: TXT }}>{p.comprador ?? 'Comprador não identificado'}</span>
+          <span className="font-mono text-[11px]" style={{ color: TXT3 }}>{p.orderSn}</span>
+        </div>
+        {children}
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="text-sm font-bold tabular-nums" style={{ color: TXT }}>R$ {p.valor.toFixed(2)}</div>
+      </div>
+      {acao}
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}`}</style>
+    </div>
+  )
+}
+
+function Chip({ texto }: { texto: string }) {
+  const icone = /endere/i.test(texto) ? <MapPin size={11} /> : /cpf|cnpj/i.test(texto) ? <IdCard size={11} /> : <Package size={11} />
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium"
+      style={{ background: 'rgba(252,211,77,0.12)', color: AMBAR, border: '1px solid rgba(252,211,77,0.25)' }}>
+      {icone} {texto}
+    </span>
+  )
+}
+
+function Aviso({ cor, texto }: { cor: string; texto: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-xl p-3 text-sm" style={{ background: `${cor}1a`, color: cor, border: `1px solid ${cor}44` }}>
+      <ArrowRight size={15} className="mt-0.5 shrink-0" />
+      <span className="min-w-0 break-words">{texto}</span>
+    </div>
+  )
+}
+
+/** Esqueleto preserva o layout enquanto carrega (melhor que só o spinner). */
+function Esqueleto() {
+  return (
+    <div className="flex animate-pulse flex-col gap-4">
+      <div className="h-32 rounded-2xl" style={CARD} />
+      <div className="flex flex-col gap-1.5">
+        {[0, 1, 2].map((i) => <div key={i} className="h-16 rounded-xl" style={CARD} />)}
+      </div>
     </div>
   )
 }
