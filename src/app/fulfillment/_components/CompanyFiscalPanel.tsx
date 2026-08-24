@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, CheckCircle2, AlertTriangle, ShieldCheck, Upload, FileText } from 'lucide-react'
-import { fulfillmentApi, type CompanyFiscalConfig, type FiscalReadiness, type FiscalProvider, type RegimeTributario } from '../_lib/api'
+import { fulfillmentApi, getToken, BACKEND, type CompanyFiscalConfig, type FiscalReadiness, type FiscalProvider, type RegimeTributario } from '../_lib/api'
 
 type CertInfo = { status: string; expiresAt: string | null; daysToExpire: number | null; hasFile: boolean }
 
@@ -10,7 +10,7 @@ const PROVIDERS: Array<{ key: FiscalProvider; label: string }> = [
   { key: 'nfeio', label: 'NFe.io' }, { key: 'focusnfe', label: 'Focus NFe' }, { key: 'plugnotas', label: 'PlugNotas' }, { key: 'erp_externo', label: 'ERP externo' },
 ]
 const REGIMES: Array<{ key: RegimeTributario; label: string }> = [
-  { key: 'simples', label: 'Simples Nacional' }, { key: 'presumido', label: 'Lucro Presumido' }, { key: 'real', label: 'Lucro Real' },
+  { key: 'mei', label: 'MEI' }, { key: 'simples', label: 'Simples Nacional' }, { key: 'presumido', label: 'Lucro Presumido' }, { key: 'real', label: 'Lucro Real' },
 ]
 const inp = { background: '#09090b', color: '#fafafa', border: '1px solid rgba(255,255,255,0.08)' } as const
 
@@ -43,6 +43,9 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
   const [showDest, setShowDest] = useState(false)
   const [dest, setDest] = useState<Record<string, string>>({})
   const setD = (k: string, v: string) => setDest((p) => ({ ...p, [k]: v }))
+  // F2b-4 — coletor de endereços (bookmarklet que roda na tela da Shopee)
+  const [coletor, setColetor] = useState<string | null>(null)
+  const [coletorBusy, setColetorBusy] = useState(false)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -78,6 +81,20 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
     try { setEmit(await fulfillmentApi.emitTestNfe(companyId)) }
     catch (e) { setErr((e as Error).message) } finally { setEmitBusy(false) }
   }
+  /** Monta o bookmarklet do coletor: carrega o script do e-Click e injeta a URL
+   *  da API + o token da sessão. Roda na página da Shopee (a Open API mascara o
+   *  endereço até o despacho, que por sua vez exige a NF-e). */
+  async function gerarColetor() {
+    setColetorBusy(true); setErr(null)
+    try {
+      const tk = await getToken()
+      if (!tk) throw new Error('Sessão expirada — recarregue a página e entre de novo.')
+      const src = `${window.location.origin}/coletor-shopee.js`
+      const js = `(function(){window.__ECLICK_API__=${JSON.stringify(BACKEND)};window.__ECLICK_TOKEN__=${JSON.stringify(tk)};var s=document.createElement('script');s.src=${JSON.stringify(src)}+'?v='+Date.now();document.body.appendChild(s);})()`
+      setColetor('javascript:' + encodeURIComponent(js))
+    } catch (e) { setErr((e as Error).message) } finally { setColetorBusy(false) }
+  }
+
   async function emitOrder(dryRun: boolean) {
     if (!orderSn.trim()) return
     // emissão de verdade é irreversível (consome número da série) — confirmar
@@ -206,6 +223,31 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
         <div className="rounded-lg p-2.5" style={{ background: '#0c0c10', border: '1px solid rgba(0,229,255,0.18)' }}>
           <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold" style={{ color: '#00E5FF' }}><FileText size={13} /> Emitir NF-e de pedido</div>
           <p className="mb-2 text-[11px]" style={{ color: '#71717a' }}>Cole o nº do pedido do marketplace (ex: 2608246F7GWX2B). "Ver prévia" monta o XML sem emitir; "Emitir" assina e envia à SEFAZ no ambiente selecionado acima. Emita com o pedido em "A Enviar" — é a janela em que a Shopee abre CPF/endereço do comprador.</p>
+          {/* Coletor de enderecos — a Shopee mascara o endereco na API ate o
+              despacho (que exige a NF). O coletor le da tela do vendedor. */}
+          <div className="mb-2 rounded-lg p-2" style={{ background: '#0a0a0e', border: '1px solid rgba(0,229,255,0.12)' }}>
+            <div className="mb-1 text-[11px] font-semibold" style={{ color: '#a5f3fc' }}>1º passo — trazer os endereços da Shopee</div>
+            <p className="mb-1.5 text-[10px] leading-relaxed" style={{ color: '#71717a' }}>
+              A Shopee esconde o endereço do comprador na integração até o pedido ser despachado — e só deixa despachar depois da nota. O coletor resolve isso lendo os endereços na sua tela da Shopee, de uma vez, para todos os pedidos.
+            </p>
+            <button onClick={gerarColetor} disabled={coletorBusy} className="rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: '#18181b', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>
+              {coletorBusy ? <Loader2 size={13} className="animate-spin" /> : 'Preparar coletor de endereços'}
+            </button>
+            {coletor && (
+              <div className="mt-2 flex flex-col gap-1.5">
+                <a href={coletor} onClick={(e) => e.preventDefault()} draggable className="cursor-grab rounded-lg px-3 py-2 text-center text-xs font-bold" style={{ background: '#00E5FF', color: '#04222a' }}>
+                  ⬇ Puxar endereços da Shopee
+                </a>
+                <ol className="ml-3 list-decimal text-[10px] leading-relaxed" style={{ color: '#a1a1aa' }}>
+                  <li>Arraste o botão acima para a <b>barra de favoritos</b> do navegador (só na 1ª vez).</li>
+                  <li>Abra a Shopee em <b>Meus Pedidos → A Enviar</b>.</li>
+                  <li>Clique no favorito <b>Puxar endereços da Shopee</b> e espere o aviso verde.</li>
+                  <li>Volte aqui e clique em <b>Emitir NF-e</b>.</li>
+                </ol>
+                <p className="text-[10px]" style={{ color: '#52525b' }}>Se disser que a sessão expirou, clique em Preparar coletor de novo e re-arraste.</p>
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <input value={orderSn} onChange={(e) => setOrderSn(e.target.value)} placeholder="nº do pedido" className="flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} />
             <button onClick={() => emitOrder(true)} disabled={!orderSn.trim() || orderBusy != null} className="rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40" style={{ background: '#18181b', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>

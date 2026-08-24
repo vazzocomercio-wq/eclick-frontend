@@ -222,7 +222,7 @@ export interface FulfillmentAccount {
 // Faturador F1 — config fiscal por empresa
 export type FiscalProvider = 'nfeio' | 'focusnfe' | 'plugnotas' | 'erp_externo'
 export type FiscalEnvironment = 'homologacao' | 'producao'
-export type RegimeTributario = 'simples' | 'presumido' | 'real'
+export type RegimeTributario = 'simples' | 'presumido' | 'real' | 'mei'
 export interface CompanyFiscalConfig {
   id: string
   company_id: string
