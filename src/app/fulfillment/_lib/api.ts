@@ -233,7 +233,7 @@ export interface FilaFiscalPedido {
   temEndereco: boolean
   temDoc: boolean
   semNcm: string[]
-  nota: { number: string | null; chave: string | null; noMarketplace: boolean } | null
+  nota: { id: string; number: string | null; chave: string | null; noMarketplace: boolean; podeCancelar: boolean; horasPraCancelar: number | null } | null
   pronto: boolean
   falta: string[]
 }
@@ -405,6 +405,8 @@ export const fulfillmentApi = {
   emitirLote: (orderSns?: string[]) =>
     api<{ emitidas: number; falhas: Array<{ pedido: string; erro: string }>; notas: Array<{ pedido: string; numero: number | null; chave: string | null; noMarketplace: boolean }> }>(
       '/fulfillment/fiscal/emitir-lote', { method: 'POST', body: JSON.stringify({ orderSns }) }),
+  cancelarNota: (body: { invoiceId?: string; accessKey?: string; justificativa: string }) =>
+    api<{ cancelada: boolean; cStat: string | null; xMotivo: string | null; protocolo: string | null }>('/fulfillment/fiscal/cancelar', { method: 'POST', body: JSON.stringify(body) }),
   reenviarMarketplace: () =>
     api<{ tentadas: number; enviadas: number; falhas: Array<{ pedido: string; erro: string }> }>(
       '/fulfillment/fiscal/reenviar-marketplace', { method: 'POST' }),
