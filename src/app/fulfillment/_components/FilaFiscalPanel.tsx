@@ -16,7 +16,7 @@ export function FilaFiscalPanel() {
   const [fila, setFila] = useState<FilaFiscal | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
-  const [busy, setBusy] = useState<'lote' | 'reenvio' | null>(null)
+  const [busy, setBusy] = useState<'lote' | 'reenvio' | 'cancelar' | null>(null)
   const [resultado, setResultado] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
@@ -37,6 +37,25 @@ export function FilaFiscalPanel() {
       const r = await fulfillmentApi.emitirLote()
       const falhas = r.falhas.length ? ` · ${r.falhas.length} falha(s): ${r.falhas.slice(0, 3).map((f) => `${f.pedido} (${f.erro})`).join(' · ')}` : ''
       setResultado(`${r.emitidas} nota(s) emitida(s)${falhas}`)
+      await carregar()
+    } catch (e) { setErr((e as Error).message) } finally { setBusy(null) }
+  }
+
+  /** Cancelamento (110111) — a justificativa é PÚBLICA e a SEFAZ exige 15+
+   *  caracteres. Prazo de 24h; passado isso o caminho é devolução, com o contador. */
+  async function cancelar(p: { orderSn: string; valor: number; nota: { id: string; number: string | null; horasPraCancelar: number | null } }) {
+    const just = window.prompt(
+      `Cancelar a NF ${p.nota.number} (${p.orderSn}, R$ ${p.valor.toFixed(2)})?\n\n` +
+      `Restam ~${p.nota.horasPraCancelar}h do prazo da SEFAZ.\n` +
+      `Escreva o motivo (mín. 15 caracteres — vai no registro público da nota):`,
+      '',
+    )
+    if (just === null) return
+    if (just.trim().length < 15) { setErr('A justificativa precisa de pelo menos 15 caracteres.'); return }
+    setBusy('cancelar'); setErr(null); setResultado(null)
+    try {
+      const r = await fulfillmentApi.cancelarNota({ invoiceId: p.nota.id, justificativa: just.trim() })
+      setResultado(r.cancelada ? `NF ${p.nota.number} cancelada (${r.cStat} ${r.xMotivo}).` : `Não cancelou — ${r.cStat}: ${r.xMotivo}`)
       await carregar()
     } catch (e) { setErr((e as Error).message) } finally { setBusy(null) }
   }
@@ -110,6 +129,15 @@ export function FilaFiscalPanel() {
                 </div>
               </div>
               <div className="text-sm font-bold" style={{ color: '#fafafa' }}>R$ {p.valor.toFixed(2)}</div>
+              {/* cancelar só enquanto a SEFAZ aceita (24h) — depois é devolução */}
+              {p.nota?.podeCancelar && (
+                <button onClick={() => cancelar({ orderSn: p.orderSn, valor: p.valor, nota: p.nota! })} disabled={busy != null}
+                  title={`Cancelar NF ${p.nota.number} — restam ~${p.nota.horasPraCancelar}h`}
+                  className="rounded-lg px-2 py-1 text-[10px] font-semibold disabled:opacity-40"
+                  style={{ background: '#18181b', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
+                  Cancelar ({p.nota.horasPraCancelar}h)
+                </button>
+              )}
             </div>
           )
         })}
