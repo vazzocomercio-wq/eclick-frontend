@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, CheckCircle2, AlertTriangle, ShieldCheck, Upload, FileText } from 'lucide-react'
 import { fulfillmentApi, getToken, BACKEND, type CompanyFiscalConfig, type FiscalReadiness, type FiscalProvider, type RegimeTributario } from '../_lib/api'
 
@@ -46,6 +46,8 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
   // F2b-4 — coletor de endereços (bookmarklet que roda na tela da Shopee)
   const [coletor, setColetor] = useState<string | null>(null)
   const [coletorBusy, setColetorBusy] = useState(false)
+  const [copiado, setCopiado] = useState(false)
+  const coletorRef = useRef<HTMLAnchorElement | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -93,6 +95,20 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
       const js = `(function(){window.__ECLICK_API__=${JSON.stringify(BACKEND)};window.__ECLICK_TOKEN__=${JSON.stringify(tk)};var s=document.createElement('script');s.src=${JSON.stringify(src)}+'?v='+Date.now();document.body.appendChild(s);})()`
       setColetor('javascript:' + encodeURIComponent(js))
     } catch (e) { setErr((e as Error).message) } finally { setColetorBusy(false) }
+  }
+
+  // Aplica o `javascript:` direto no DOM — via prop o React 19 sanitiza e o
+  // favorito arrastado não executa nada.
+  useEffect(() => {
+    if (coletor && coletorRef.current) coletorRef.current.setAttribute('href', coletor)
+  }, [coletor])
+
+  async function copiarColetor() {
+    if (!coletor) return
+    try {
+      await navigator.clipboard.writeText(coletor)
+      setCopiado(true); setTimeout(() => setCopiado(false), 4000)
+    } catch { setErr('Não consegui copiar — selecione o botão e copie com Ctrl+C.') }
   }
 
   async function emitOrder(dryRun: boolean) {
@@ -235,9 +251,15 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
             </button>
             {coletor && (
               <div className="mt-2 flex flex-col gap-1.5">
-                <a href={coletor} onClick={(e) => e.preventDefault()} draggable className="cursor-grab rounded-lg px-3 py-2 text-center text-xs font-bold" style={{ background: '#00E5FF', color: '#04222a' }}>
+                {/* ⚠️ href NÃO pode vir por prop: o React 19 bloqueia URL
+                    `javascript:` e o favorito nasce morto (arrasta, mas não faz
+                    nada). Setamos via DOM no efeito abaixo. */}
+                <a ref={coletorRef} onClick={(e) => e.preventDefault()} draggable className="cursor-grab rounded-lg px-3 py-2 text-center text-xs font-bold" style={{ background: '#00E5FF', color: '#04222a' }}>
                   ⬇ Puxar endereços da Shopee
                 </a>
+                <button onClick={copiarColetor} className="rounded-lg px-3 py-1.5 text-[11px] font-semibold" style={{ background: '#18181b', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>
+                  {copiado ? '✓ Copiado! Cole no campo URL do favorito' : 'Não consegui arrastar — copiar o código'}
+                </button>
                 <ol className="ml-3 list-decimal text-[10px] leading-relaxed" style={{ color: '#a1a1aa' }}>
                   <li>Arraste o botão acima para a <b>barra de favoritos</b> do navegador (só na 1ª vez).</li>
                   <li>Abra a Shopee em <b>Meus Pedidos → A Enviar</b>.</li>
