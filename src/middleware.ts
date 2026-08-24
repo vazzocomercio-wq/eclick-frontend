@@ -99,6 +99,11 @@ export async function middleware(request: NextRequest) {
     earlyPath.startsWith('/forgot-password') ||
     earlyPath.startsWith('/redefinir-senha') ||
     earlyPath.startsWith('/auth') ||
+    // coletor de endereços: carregado DE DENTRO da página da Shopee (cross-site),
+    // então não leva o cookie de sessão — tem de ser público ou vira redirect
+    // pro /login e o bookmarklet quebra. O script sozinho não faz nada: só age
+    // com o token que o painel injeta na hora de gerar o bookmarklet.
+    earlyPath === '/coletor-shopee.js' ||
     earlyPath === '/llms.txt' ||
     earlyPath === '/sitemap.xml' ||
     earlyPath === '/rss.xml' ||
