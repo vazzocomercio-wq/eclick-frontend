@@ -270,8 +270,10 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
               </div>
             )}
           </div>
-          <div className="flex gap-2">
-            <input value={orderSn} onChange={(e) => setOrderSn(e.target.value)} placeholder="nº do pedido" className="flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} />
+          {/* wrap: o painel abre numa gaveta estreita — sem quebrar linha os
+              botões saem da área visível e a emissão fica inalcançável */}
+          <div className="flex flex-wrap gap-2">
+            <input value={orderSn} onChange={(e) => setOrderSn(e.target.value)} placeholder="nº do pedido" className="min-w-[140px] flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} />
             <button onClick={() => emitOrder(true)} disabled={!orderSn.trim() || orderBusy != null} className="rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40" style={{ background: '#18181b', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>
               {orderBusy === 'dry' ? <Loader2 size={13} className="animate-spin" /> : 'Ver prévia'}
             </button>
