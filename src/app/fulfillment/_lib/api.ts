@@ -224,6 +224,23 @@ export type FiscalProvider = 'nfeio' | 'focusnfe' | 'plugnotas' | 'erp_externo'
 export type FiscalEnvironment = 'homologacao' | 'producao'
 export type RegimeTributario = 'simples' | 'presumido' | 'real' | 'mei'
 
+
+// ── Controle de notas (F2b-8) ───────────────────────────────────────────────
+export interface NotaEmitida {
+  id: string; numero: string | null; serie: string | null; chave: string | null
+  status: string; emitidaEm: string; valor: number
+  pedido: string | null; comprador: string | null
+  plataforma: string | null; conta: string | null; contaLabel: string | null
+  noMarketplace: boolean; cancelavelAte: string | null
+  temXml: boolean; temPdf: boolean
+}
+export interface ListaNotas {
+  notas: NotaEmitida[]
+  resumo: { quantidade: number; valorTotal: number; canceladas: number; pendentesMarketplace: number }
+  total: number
+}
+export interface ContaFiscal { plataforma: string; conta: string; label: string | null }
+
 // ── Fila fiscal (F2b-6) ─────────────────────────────────────────────────────
 export interface FilaFiscalPedido {
   orderSn: string
@@ -405,6 +422,25 @@ export const fulfillmentApi = {
   emitirLote: (orderSns?: string[]) =>
     api<{ emitidas: number; falhas: Array<{ pedido: string; erro: string }>; notas: Array<{ pedido: string; numero: number | null; chave: string | null; noMarketplace: boolean }> }>(
       '/fulfillment/fiscal/emitir-lote', { method: 'POST', body: JSON.stringify({ orderSns }) }),
+  listarNotas: (f: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString()
+    return api<ListaNotas>(`/fulfillment/fiscal/notas${qs ? `?${qs}` : ''}`)
+  },
+  contasFiscais: () => api<ContaFiscal[]>('/fulfillment/fiscal/notas/contas'),
+  xmlDaNota: (id: string) => api<{ url: string; filename: string }>(`/fulfillment/fiscal/notas/${id}/xml`),
+  /** DANFE vem como PDF direto (não JSON) — baixado com o token no header. */
+  baixarDanfe: async (id: string, nomeArquivo: string) => {
+    const token = await getToken()
+    const res = await fetch(`${BACKEND}/fulfillment/fiscal/notas/${id}/danfe`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) throw new ApiError(`Não consegui gerar o DANFE (erro ${res.status})`, res.status)
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = nomeArquivo; a.click()
+    URL.revokeObjectURL(url)
+  },
   cancelarNota: (body: { invoiceId?: string; accessKey?: string; justificativa: string }) =>
     api<{ cancelada: boolean; cStat: string | null; xMotivo: string | null; protocolo: string | null }>('/fulfillment/fiscal/cancelar', { method: 'POST', body: JSON.stringify(body) }),
   reenviarMarketplace: () =>
