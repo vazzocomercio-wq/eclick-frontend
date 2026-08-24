@@ -35,6 +35,10 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
   const [emit, setEmit] = useState<{ authorized: boolean; cStat: string | null; xMotivo: string | null; chave: string | null; protocolo: string | null } | null>(null)
   const [emitBusy, setEmitBusy] = useState(false)
   const [addr, setAddr] = useState<Record<string, string>>({})
+  // F2b-3 — emissão real por pedido
+  const [orderSn, setOrderSn] = useState('')
+  const [orderEmit, setOrderEmit] = useState<{ authorized: boolean; dryRun?: boolean; cStat: string | null; xMotivo: string | null; chave: string | null; protocolo: string | null; nNF: number | null; serie?: number; xml?: string } | null>(null)
+  const [orderBusy, setOrderBusy] = useState<'dry' | 'emit' | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -69,6 +73,14 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
     setEmitBusy(true); setErr(null); setEmit(null)
     try { setEmit(await fulfillmentApi.emitTestNfe(companyId)) }
     catch (e) { setErr((e as Error).message) } finally { setEmitBusy(false) }
+  }
+  async function emitOrder(dryRun: boolean) {
+    if (!orderSn.trim()) return
+    // emissão de verdade é irreversível (consome número da série) — confirmar
+    if (!dryRun && !window.confirm(`Emitir NF-e REAL do pedido ${orderSn.trim()} em ${cfg?.environment === 'producao' ? 'PRODUÇÃO' : 'homologação'}?`)) return
+    setOrderBusy(dryRun ? 'dry' : 'emit'); setErr(null); setOrderEmit(null)
+    try { setOrderEmit(await fulfillmentApi.emitOrderNfe(orderSn.trim(), dryRun)) }
+    catch (e) { setErr((e as Error).message) } finally { setOrderBusy(null) }
   }
   useEffect(() => { void reload() }, [reload])
 
@@ -176,6 +188,34 @@ export function CompanyFiscalPanel({ companyId }: { companyId: string }) {
           )}
         </div>
       </div>
+
+      {/* F2b-3 — emissão REAL: NF-e de um pedido do marketplace (nº do pedido na Shopee) */}
+      {cert?.hasFile && (
+        <div className="rounded-lg p-2.5" style={{ background: '#0c0c10', border: '1px solid rgba(0,229,255,0.18)' }}>
+          <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold" style={{ color: '#00E5FF' }}><FileText size={13} /> Emitir NF-e de pedido</div>
+          <p className="mb-2 text-[11px]" style={{ color: '#71717a' }}>Cole o nº do pedido do marketplace (ex: 2608246F7GWX2B). "Ver prévia" monta o XML sem emitir; "Emitir" assina e envia à SEFAZ no ambiente selecionado acima. Emita com o pedido em "A Enviar" — é a janela em que a Shopee abre CPF/endereço do comprador.</p>
+          <div className="flex gap-2">
+            <input value={orderSn} onChange={(e) => setOrderSn(e.target.value)} placeholder="nº do pedido" className="flex-1 rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} />
+            <button onClick={() => emitOrder(true)} disabled={!orderSn.trim() || orderBusy != null} className="rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40" style={{ background: '#18181b', color: '#a5f3fc', border: '1px solid rgba(0,229,255,0.25)' }}>
+              {orderBusy === 'dry' ? <Loader2 size={13} className="animate-spin" /> : 'Ver prévia'}
+            </button>
+            <button onClick={() => emitOrder(false)} disabled={!orderSn.trim() || orderBusy != null} className="rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40" style={{ background: '#00E5FF', color: '#04222a' }}>
+              {orderBusy === 'emit' ? <Loader2 size={13} className="animate-spin" /> : 'Emitir NF-e'}
+            </button>
+          </div>
+          {orderEmit && (
+            <div className="mt-2 text-xs font-semibold leading-relaxed" style={{ color: orderEmit.authorized ? '#4ADE50' : orderEmit.dryRun ? '#a5f3fc' : '#fcd34d' }}>
+              {orderEmit.dryRun ? '👁 Prévia montada' : orderEmit.authorized ? '✓ AUTORIZADA!' : '⚠'} {orderEmit.cStat ? `cStat ${orderEmit.cStat}: ` : ''}{orderEmit.xMotivo}
+              {orderEmit.nNF != null ? <><br />NF nº {orderEmit.nNF} · série {orderEmit.serie ?? 1}</> : null}
+              {orderEmit.chave ? <><br />Chave: {orderEmit.chave}</> : null}
+              {orderEmit.protocolo ? ` · Protocolo: ${orderEmit.protocolo}` : ''}
+              {orderEmit.dryRun && orderEmit.xml ? (
+                <button onClick={() => { const b = new Blob([orderEmit.xml!], { type: 'application/xml' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `previa-${orderSn.trim()}.xml`; a.click(); URL.revokeObjectURL(u) }} className="mt-1 block rounded-lg px-2 py-1 text-[11px]" style={{ background: '#18181b', color: '#00E5FF', border: '1px solid rgba(0,229,255,0.25)' }}>Baixar XML da prévia</button>
+              ) : null}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         <Lbl t="Logradouro"><input defaultValue={addr.logradouro ?? ''} onBlur={(e) => saveAddr('logradouro', e.target.value)} className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={inp} /></Lbl>
