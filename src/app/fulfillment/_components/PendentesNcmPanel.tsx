@@ -76,9 +76,16 @@ export function PendentesNcmPanel() {
     if (!i.sugestao) return
     setLinha(i.productId, { ncm: i.sugestao.ncm, origem: i.sugestao.origem ?? '0' })
   }
+  /**
+   * Preenche em massa SÓ as sugestões de categoria (muitos irmãos concordando).
+   * As por nome parecido ficam de fora de propósito: a margem entre um palpite
+   * certo e um errado ali é fina, e um clique nao pode carimbar 7 classificacoes
+   * que ninguem leu. Essas exigem o clique na propria linha.
+   */
+  const emMassa = useMemo(() => itens.filter((i) => i.sugestao?.base === 'categoria'), [itens])
   function preencherTodas() {
     const novo = { ...draft }
-    for (const i of itens) {
+    for (const i of emMassa) {
       if (!i.sugestao || novo[i.productId]?.ncm) continue
       novo[i.productId] = { ncm: i.sugestao.ncm, origem: i.sugestao.origem ?? '0' }
     }
@@ -135,10 +142,11 @@ export function PendentesNcmPanel() {
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="SKU ou nome do produto"
             className="w-full rounded-lg py-2 pl-8 pr-2 text-sm outline-none" style={inp} />
         </label>
-        <button onClick={preencherTodas} disabled={loading || itens.length === 0}
+        <button onClick={preencherTodas} disabled={loading || emMassa.length === 0}
+          title="Preenche as sugestões apoiadas por vários produtos da mesma categoria. As baseadas em nome parecido ficam de fora — essas você aceita uma a uma."
           className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors duration-150 hover:brightness-125 disabled:opacity-40"
           style={{ background: '#09090b', color: AMBAR, border: `1px solid ${AMBAR}44` }}>
-          <Wand2 size={13} /> Preencher com as sugestões
+          <Wand2 size={13} /> Preencher as {emMassa.length} de categoria
         </button>
       </div>
 
