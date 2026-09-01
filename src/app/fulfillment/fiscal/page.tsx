@@ -2,22 +2,25 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ListChecks, Archive } from 'lucide-react'
+import { ArrowLeft, ListChecks, Archive, Tags } from 'lucide-react'
 import { FilaFiscalPanel } from '../_components/FilaFiscalPanel'
 import { NotasEmitidasPanel } from '../_components/NotasEmitidasPanel'
+import { PendentesNcmPanel } from '../_components/PendentesNcmPanel'
 
 /**
- * Faturamento — duas perguntas diferentes, duas abas:
- *   Fila   = "o que preciso faturar agora?" (janela de despacho)
- *   Notas  = "o que já foi faturado?" (histórico, filtros, XML e PDF)
+ * Faturamento — três perguntas diferentes, três abas:
+ *   Fila          = "o que preciso faturar agora?" (janela de despacho)
+ *   Notas         = "o que já foi faturado?" (histórico, filtros, XML e PDF)
+ *   Classificação = "o que vai me travar?" (produto que vende e não tem NCM)
  */
-type Aba = 'fila' | 'notas'
+type Aba = 'fila' | 'notas' | 'ncm'
 
 export default function FiscalPage() {
   const [aba, setAba] = useState<Aba>('fila')
   const abas: Array<{ k: Aba; label: string; icone: React.ReactNode }> = [
     { k: 'fila', label: 'Fila', icone: <ListChecks size={14} /> },
     { k: 'notas', label: 'Notas emitidas', icone: <Archive size={14} /> },
+    { k: 'ncm', label: 'Classificação', icone: <Tags size={14} /> },
   ]
 
   return (
@@ -47,7 +50,7 @@ export default function FiscalPage() {
         })}
       </div>
 
-      {aba === 'fila' ? <FilaFiscalPanel /> : <NotasEmitidasPanel />}
+      {aba === 'fila' ? <FilaFiscalPanel /> : aba === 'notas' ? <NotasEmitidasPanel /> : <PendentesNcmPanel />}
     </div>
   )
 }
