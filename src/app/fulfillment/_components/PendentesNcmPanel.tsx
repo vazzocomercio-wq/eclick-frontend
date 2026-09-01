@@ -99,7 +99,8 @@ export function PendentesNcmPanel() {
       const r = await fulfillmentApi.salvarFiscalProdutos(prontos.map(([productId, v]) => ({
         productId, ncm: v.ncm, origem: v.origem, cfop_sale: '5102', cst_csosn: '102', unit: 'UN',
       })))
-      setOk(`${r.gravados} produto(s) classificado(s). Os pedidos que dependiam deles já podem ser faturados.`)
+      setOk(`${r.gravados} produto(s) classificado(s). Os pedidos que dependiam deles já podem ser faturados.`
+        + (r.pulados ? ` ${r.pulados} ficaram como estavam — já tinham NCM e cadastro antigo não se mexe.` : ''))
       setDraft({})
       await carregar()
     } catch (e) { setErr((e as Error).message) } finally { setSalvando(false) }
