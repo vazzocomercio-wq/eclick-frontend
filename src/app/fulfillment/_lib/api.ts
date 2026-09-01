@@ -457,7 +457,7 @@ export const fulfillmentApi = {
   // F2b-9 — produtos vendidos ainda sem NCM (o que trava a emissão)
   pendentesNcm: (dias = 120) => api<PendentesNcm>(`/fulfillment/fiscal/products/pendentes?dias=${dias}`),
   salvarFiscalProdutos: (items: Array<{ productId: string; ncm: string; origem?: string; cfop_sale?: string; cst_csosn?: string; unit?: string }>) =>
-    api<{ ok: true; gravados: number }>('/fulfillment/fiscal/products', { method: 'PUT', body: JSON.stringify({ items }) }),
+    api<{ ok: true; gravados: number; pulados: number }>('/fulfillment/fiscal/products', { method: 'PUT', body: JSON.stringify({ items }) }),
 
   cancelarNota: (body: { invoiceId?: string; accessKey?: string; justificativa: string }) =>
     api<{ cancelada: boolean; cStat: string | null; xMotivo: string | null; protocolo: string | null }>('/fulfillment/fiscal/cancelar', { method: 'POST', body: JSON.stringify(body) }),
