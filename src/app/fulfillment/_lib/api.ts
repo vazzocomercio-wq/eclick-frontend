@@ -246,7 +246,7 @@ export interface ProdutoPendenteNcm {
   productId: string; sku: string | null; nome: string | null; categoria: string | null
   pedidos: number; receita: number; ultimaVenda: string | null
   viaKit: Array<{ sku: string | null; nome: string | null }>
-  sugestao: { ncm: string; origem: string | null; irmaos: number; exemplo: string | null; base: 'categoria' | 'nome' } | null
+  sugestao: { ncm: string; origem: string | null; irmaos: number; exemplo: string | null; base: 'kit' | 'categoria' | 'nome' } | null
 }
 export interface PendentesNcm {
   dias: number
