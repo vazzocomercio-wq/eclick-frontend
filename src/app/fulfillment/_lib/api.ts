@@ -241,6 +241,19 @@ export interface ListaNotas {
 }
 export interface ContaFiscal { plataforma: string; conta: string; label: string | null }
 
+// ── Classificação fiscal de produto (F2b-9) ─────────────────────────────────
+export interface ProdutoPendenteNcm {
+  productId: string; sku: string | null; nome: string | null; categoria: string | null
+  pedidos: number; receita: number; ultimaVenda: string | null
+  viaKit: Array<{ sku: string | null; nome: string | null }>
+  sugestao: { ncm: string; origem: string | null; irmaos: number; exemplo: string | null; base: 'categoria' | 'nome' } | null
+}
+export interface PendentesNcm {
+  dias: number
+  resumo: { pendentes: number; produtosVendidos: number; pedidosTravados: number }
+  itens: ProdutoPendenteNcm[]
+}
+
 // ── Fila fiscal (F2b-6) ─────────────────────────────────────────────────────
 export interface FilaFiscalPedido {
   orderSn: string
@@ -441,6 +454,11 @@ export const fulfillmentApi = {
     a.href = url; a.download = nomeArquivo; a.click()
     URL.revokeObjectURL(url)
   },
+  // F2b-9 — produtos vendidos ainda sem NCM (o que trava a emissão)
+  pendentesNcm: (dias = 120) => api<PendentesNcm>(`/fulfillment/fiscal/products/pendentes?dias=${dias}`),
+  salvarFiscalProdutos: (items: Array<{ productId: string; ncm: string; origem?: string; cfop_sale?: string; cst_csosn?: string; unit?: string }>) =>
+    api<{ ok: true; gravados: number }>('/fulfillment/fiscal/products', { method: 'PUT', body: JSON.stringify({ items }) }),
+
   cancelarNota: (body: { invoiceId?: string; accessKey?: string; justificativa: string }) =>
     api<{ cancelada: boolean; cStat: string | null; xMotivo: string | null; protocolo: string | null }>('/fulfillment/fiscal/cancelar', { method: 'POST', body: JSON.stringify(body) }),
   reenviarMarketplace: () =>
