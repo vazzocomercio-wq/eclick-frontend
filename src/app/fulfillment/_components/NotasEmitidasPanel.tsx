@@ -43,7 +43,11 @@ export function NotasEmitidasPanel() {
     setBaixando(`${n.id}-xml`); setErr(null)
     try {
       const { url, filename } = await fulfillmentApi.xmlDaNota(n.id)
-      const a = document.createElement('a'); a.href = url; a.download = filename; a.target = '_blank'; a.click()
+      // sem target='_blank': a URL assinada já vem com Content-Disposition:
+      // attachment, e abrir em aba nova deixava o XML na tela em vez de baixar
+      const a = document.createElement('a')
+      a.href = url; a.download = filename; a.rel = 'noopener'
+      document.body.appendChild(a); a.click(); a.remove()
     } catch (e) { setErr((e as Error).message) } finally { setBaixando(null) }
   }
   async function baixarPdf(n: NotaEmitida) {
