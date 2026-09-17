@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2, Tv, Truck, Box, MapPin, ShoppingCart, FileText } from 'lucide-react'
+import { PackageSearch, PackageCheck, AlertTriangle, ScanLine, RefreshCw, Warehouse as WarehouseIcon, Settings, Users, Clock, RotateCcw, Layers, Building2, Tv, Truck, Box, MapPin, ShoppingCart, FileText, Printer } from 'lucide-react'
 import { fulfillmentApi, type Warehouse, type DashboardData } from './_lib/api'
 import { SettingsSheet } from './_components/SettingsSheet'
 import { TeamSheet } from './_components/TeamSheet'
@@ -152,6 +152,21 @@ export default function FulfillmentHub() {
 
       {/* Ações principais */}
       <div className="flex flex-col gap-3">
+        {/* operação simples: imprime a etiqueta oficial direto na térmica, sem bipar */}
+        <Link
+          href="/fulfillment/etiquetas"
+          className="flex items-center gap-4 rounded-2xl p-5 active:scale-[0.99] transition-transform"
+          style={{ background: 'linear-gradient(135deg,#2a2406,#0c0c10)', border: '1px solid #FFE60055' }}
+        >
+          <div className="grid h-14 w-14 place-items-center rounded-xl" style={{ background: '#FFE6001a' }}>
+            <Printer size={28} color="#FFE600" />
+          </div>
+          <div className="flex-1">
+            <div className="text-lg font-bold">Etiquetas do dia</div>
+            <div className="text-sm" style={{ color: '#a1a1aa' }}>Imprimir direto na etiquetadora</div>
+          </div>
+        </Link>
+
         <Link
           href="/fulfillment/picking"
           className="flex items-center gap-4 rounded-2xl p-5 active:scale-[0.99] transition-transform"

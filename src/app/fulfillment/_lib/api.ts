@@ -198,6 +198,22 @@ export interface CollectionAccount { accountId: string | null; label: string; pl
 export interface CollectionGroup { companyId: string | null; companyName: string; accounts: CollectionAccount[]; count: number }
 export interface CollectionData { groups: CollectionGroup[]; total: number; generatedAt: string }
 
+// ── Etiquetas do dia (operação simples, sem bipar) ───────────────────────────
+export interface EtiquetaEnvio {
+  shipmentId: string; accountId: string; contaLabel: string | null; platform: string
+  pedidos: string[]; packId: string | null; comprador: string | null
+  itens: Array<{ sku: string; title: string | null; qty: number }>
+  vendidoEm: string | null; substatus: string | null; logisticType: string | null
+  prazoDespacho: string | null; rastreio: string | null
+  podeImprimir: boolean; motivo: string | null; impressoNoMl: boolean; impressoPorNosEm: string | null
+}
+export interface EtiquetaConta { id: string; label: string | null; platform: string; externalAccountId: string; suportado: boolean }
+export interface EtiquetasData { contas: EtiquetaConta[]; envios: EtiquetaEnvio[]; geradoEm: string }
+export interface EtiquetaImpressa {
+  ok: boolean; format: string; trackingCode: string | null; labelUrl: string | null
+  fulfillmentOrderId: string; pdfBase64: string | null
+}
+
 // ── Empresas & Contas (Onda A — multi-CNPJ / multiconta) ────────────────────
 export type CompanyRole = 'matriz' | 'revendedora' | 'unica'
 export interface FulfillmentCompany {
@@ -496,6 +512,9 @@ export const fulfillmentApi = {
   printLabel: (fulfillmentOrderId: string) =>
     api<{ ok: boolean; format: string; trackingCode: string | null; labelUrl: string | null }>(
       '/fulfillment/shipment-labels/print', { method: 'POST', body: JSON.stringify({ fulfillmentOrderId }) }),
+  etiquetas: () => api<EtiquetasData>('/fulfillment/etiquetas'),
+  imprimirEtiqueta: (externalOrderId: string) =>
+    api<EtiquetaImpressa>('/fulfillment/etiquetas/imprimir', { method: 'POST', body: JSON.stringify({ externalOrderId }) }),
 
   reportDamage: (body: { warehouseId?: string; pickTaskId?: string; fulfillmentOrderId?: string; sku: string; severity: string; description?: string; photosBase64?: string[] }) =>
     api<{ ok: boolean; id?: string; aiSuggested?: unknown }>('/fulfillment/damage-reports', { method: 'POST', body: JSON.stringify(body) }),
