@@ -56,6 +56,7 @@ export default function EtiquetasPage() {
 
   const imprimiveis = useMemo(() => (data?.envios ?? []).filter((e) => e.podeImprimir), [data])
   const pendentes = useMemo(() => imprimiveis.filter((e) => !e.impressoNoMl && !e.impressoPorNosEm), [imprimiveis])
+  const aguardando = useMemo(() => (data?.envios ?? []).filter((e) => !e.podeImprimir), [data])
 
   function toggle(id: string) {
     setSel((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
@@ -92,7 +93,10 @@ export default function EtiquetasPage() {
         <div className="flex-1">
           <h1 className="text-xl font-bold">Etiquetas do dia</h1>
           <p className="text-xs" style={{ color: '#71717a' }}>
-            {data ? `${imprimiveis.length} envio(s) · ${pendentes.length} sem imprimir` : 'envios prontos pra despachar'}
+            {/* conta TODOS os envios: o que está travado esperando nota também é trabalho do dia */}
+            {data
+              ? `${data.envios.length} envio(s) · ${pendentes.length} sem imprimir${aguardando.length ? ` · ${aguardando.length} aguardando nota` : ''}`
+              : 'envios prontos pra despachar'}
           </p>
         </div>
         <button onClick={() => void load()} className="rounded-xl p-2.5" style={{ background: '#18181b' }} aria-label="Atualizar">
