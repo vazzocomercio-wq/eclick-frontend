@@ -128,8 +128,14 @@ export function sugerirEtiquetadora(nomes: string[]): string | null {
   return nomes.find((n) => /etiq|itiq|label|zebra|elgin|argox|tsc|zjiang|xprinter|4bar/i.test(n)) ?? null
 }
 
-/** Manda o PDF (todas as páginas: etiqueta + DACE/DANFE) pra térmica 100×150. */
-export async function imprimirPdfEtiqueta(impressora: string, pdfBase64: string) {
+/** Manda os PDFs das etiquetas (cada um com etiqueta + DACE/DANFE) pra térmica
+ *  100×150 em UM ÚNICO trabalho de impressão.
+ *
+ *  ⚠️ Um trabalho por etiqueta = uma janela "Allow" do QZ por etiqueta. Mandar
+ *  o lote inteiro de uma vez é o que faz o operador confirmar no máximo uma vez
+ *  (e nenhuma, depois que marcar "Remember this decision"). */
+export async function imprimirPdfEtiquetas(impressora: string, pdfsBase64: string[]) {
+  if (pdfsBase64.length === 0) return
   const qz = await conectarQz()
   const config = qz.configs.create(impressora, {
     size: { width: 100, height: 150 },
@@ -140,5 +146,5 @@ export async function imprimirPdfEtiqueta(impressora: string, pdfBase64: string)
     rasterize: true,
     interpolation: 'nearest-neighbor',
   })
-  await qz.print(config, [{ type: 'pixel', format: 'pdf', flavor: 'base64', data: pdfBase64 }])
+  await qz.print(config, pdfsBase64.map((data) => ({ type: 'pixel', format: 'pdf', flavor: 'base64', data })))
 }

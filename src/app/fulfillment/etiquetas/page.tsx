@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, RefreshCw, Printer, CheckCircle2, AlertTriangle, Clock, Inbox, Loader2, FileText, Square, CheckSquare, ShieldCheck } from 'lucide-react'
 import { fulfillmentApi, type EtiquetasData, type EtiquetaEnvio } from '../_lib/api'
-import { conectarQz, listarImpressoras, impressoraSalva, salvarImpressora, sugerirEtiquetadora, imprimirPdfEtiqueta, baixarCertificadoQz } from '../_lib/qz'
+import { conectarQz, listarImpressoras, impressoraSalva, salvarImpressora, sugerirEtiquetadora, imprimirPdfEtiquetas, baixarCertificadoQz } from '../_lib/qz'
 
 const platformColor = (p: string | null) => p === 'mercadolivre' ? '#FFE600' : p === 'shopee' ? '#EE4D2D' : '#a1a1aa'
 const platformName = (p: string) => p === 'mercadolivre' ? 'Mercado Livre' : p === 'shopee' ? 'Shopee' : p
 const logisticLabel = (t: string | null) =>
   t === 'self_service' ? 'Flex' : t === 'cross_docking' ? 'Coleta' : t === 'xd_drop_off' ? 'Agência' : t === 'drop_off' ? 'Correios/Agência' : (t ?? '')
 
-type Estado = { fase: 'imprimindo' | 'ok' | 'erro'; msg?: string; labelUrl?: string | null }
+type Estado = { fase: 'baixando' | 'imprimindo' | 'ok' | 'erro'; msg?: string; labelUrl?: string | null }
 
 /**
  * Etiquetas do dia — operação SIMPLES da expedição: lista os envios prontos das
@@ -65,20 +65,43 @@ export default function EtiquetasPage() {
   async function imprimir(envios: EtiquetaEnvio[]) {
     if (!impressora) { setQzErr('Escolha a impressora de etiquetas antes de imprimir.'); return }
     setRodando(true)
-    // uma de cada vez: a térmica imprime na ordem e um erro não derruba as outras
+
+    // 1) busca as etiquetas no marketplace, uma a uma (um erro não derruba as outras)
+    const prontos: Array<{ envio: EtiquetaEnvio; pdf: string; labelUrl: string | null }> = []
     for (const e of envios) {
-      setEstado((p) => ({ ...p, [e.shipmentId]: { fase: 'imprimindo' } }))
+      setEstado((p) => ({ ...p, [e.shipmentId]: { fase: 'baixando' } }))
       let labelUrl: string | null = null
       try {
         const r = await fulfillmentApi.imprimirEtiqueta(e.pedidos[0])
         labelUrl = r.labelUrl
         if (!r.pdfBase64) throw new Error('O marketplace não devolveu o PDF da etiqueta.')
-        await imprimirPdfEtiqueta(impressora, r.pdfBase64)
-        setEstado((p) => ({ ...p, [e.shipmentId]: { fase: 'ok', labelUrl } }))
+        prontos.push({ envio: e, pdf: r.pdfBase64, labelUrl })
+        setEstado((p) => ({ ...p, [e.shipmentId]: { fase: 'imprimindo', labelUrl } }))
       } catch (x) {
         setEstado((p) => ({ ...p, [e.shipmentId]: { fase: 'erro', msg: (x as Error).message, labelUrl } }))
       }
     }
+
+    // 2) TODAS as etiquetas num único trabalho de impressão — é isso que faz o QZ
+    //    Tray perguntar no máximo uma vez, em vez de uma janela por etiqueta
+    if (prontos.length > 0) {
+      try {
+        await imprimirPdfEtiquetas(impressora, prontos.map((p) => p.pdf))
+        setEstado((p) => {
+          const n = { ...p }
+          for (const { envio, labelUrl } of prontos) n[envio.shipmentId] = { fase: 'ok', labelUrl }
+          return n
+        })
+      } catch (x) {
+        const msg = (x as Error).message
+        setEstado((p) => {
+          const n = { ...p }
+          for (const { envio, labelUrl } of prontos) n[envio.shipmentId] = { fase: 'erro', msg, labelUrl }
+          return n
+        })
+      }
+    }
+
     setRodando(false)
     setSel(new Set())
     void load()
@@ -138,7 +161,7 @@ export default function EtiquetasPage() {
               <li><button onClick={() => void baixarCertificadoQz()} className="underline" style={{ color: '#00E5FF' }}>Baixe o certificado</button> (arquivo <b>override.crt</b>).</li>
               <li>Copie o arquivo para <b>C:\Program Files\QZ Tray</b> (o Windows pede confirmação de administrador).</li>
               <li>Feche o QZ Tray (ícone perto do relógio → Exit) e abra de novo.</li>
-              <li>Na próxima impressão marque <b>Remember this decision</b> e clique <b>Allow</b>.</li>
+              <li>Na próxima impressão marque <b>Remember this decision</b> e clique <b>Allow</b> — sem marcar, ele pergunta a cada impressão.</li>
             </ol>
           </div>
         )}
@@ -260,6 +283,12 @@ function EnvioCard({ envio: e, marcado, estado, bloqueado, onToggle, onImprimir 
             {e.motivo && <span style={{ color: '#fcd34d' }}>{e.motivo}</span>}
           </div>
 
+          {(estado?.fase === 'baixando' || estado?.fase === 'imprimindo') && (
+            <p className="mt-2 flex items-center gap-1 text-xs" style={{ color: '#00E5FF' }}>
+              <Loader2 size={14} className="animate-spin" />
+              {estado.fase === 'baixando' ? 'Buscando a etiqueta no marketplace…' : 'Indo pra impressora…'}
+            </p>
+          )}
           {estado?.fase === 'ok' && (
             <p className="mt-2 flex items-center gap-1 text-xs" style={{ color: '#4ADE50' }}><CheckCircle2 size={14} /> Enviada pra impressora</p>
           )}
@@ -282,7 +311,7 @@ function EnvioCard({ envio: e, marcado, estado, bloqueado, onToggle, onImprimir 
             className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-40"
             style={{ background: jaImpresso ? '#18181b' : '#00E5FF1a', color: '#00E5FF', border: '1px solid #00E5FF44' }}
           >
-            {estado?.fase === 'imprimindo' ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
+            {estado && (estado.fase === 'baixando' || estado.fase === 'imprimindo') ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
             {jaImpresso ? 'Reimprimir' : 'Imprimir'}
           </button>
         )}
