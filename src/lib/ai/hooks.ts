@@ -23,7 +23,8 @@ export function useSugestaoResposta() {
     setLoading(false)
   }, [])
 
-  return { sugestao, loading, gerar, limpar: () => setSugestao(null) }
+  // definir: rascunho já pronto (vindo do backend) sem chamar a IA de novo
+  return { sugestao, loading, gerar, limpar: () => setSugestao(null), definir: setSugestao }
 }
 
 // ── useOtimizarTitulo ──────────────────────────────────────────────────────
