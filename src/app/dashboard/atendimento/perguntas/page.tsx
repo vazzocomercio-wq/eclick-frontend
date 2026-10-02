@@ -276,7 +276,8 @@ export default function PerguntasPage() {
   const [search, setSearch]               = useState('')
   const [toasts, setToasts]               = useState<{ id: number; msg: string; type: 'ok' | 'err' }[]>([])
   const prevIds = useRef<Set<number>>(new Set())
-  const { sugestao: aiSuggestionRaw, loading: aiLoading, gerar: gerarSugestao, limpar: limparSugestao } = useSugestaoResposta()
+  const selectedIdRef = useRef<number | null>(null)  // descarta rascunho que chega depois de trocar de pergunta
+  const { sugestao: aiSuggestionRaw, loading: aiLoading, gerar: gerarSugestao, limpar: limparSugestao, definir: definirSugestao } = useSugestaoResposta()
   const aiSuggestion: string | null = aiSuggestionRaw ? (stripAiHeader(aiSuggestionRaw) || null) : null
   const aiAvailable = true  // gate real está no backend (ai_feature_settings per-org)
   const [aiProvider, setAiProvider] = useState(() => getAIPreference().provider)
@@ -472,6 +473,25 @@ export default function PerguntasPage() {
     setSent(false)
     setConfirmDelete(false)
     limparSugestao()
+    // Rascunho da IA já gerado pelo webhook (modo rascunho da conta) —
+    // aparece direto, sem clicar em "IA sugerir". Enviar passa pelo
+    // approve-and-send, que registra se foi usado como veio ou editado.
+    selectedIdRef.current = q.id
+    void (async () => {
+      try {
+        const session = await getSession()
+        if (!session) return
+        const res = await fetch(`${BACKEND}/ml/questions/${q.id}/suggestion`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) return
+        const data: { suggested_answer?: string } | null = await res.json().catch(() => null)
+        if (data?.suggested_answer && selectedIdRef.current === q.id) {
+          definirSugestao(data.suggested_answer)
+          setAnswerText(prev => prev || data.suggested_answer!)
+        }
+      } catch { /* sem rascunho — segue o fluxo manual */ }
+    })()
   }
 
   const handleAnswer = async () => {
