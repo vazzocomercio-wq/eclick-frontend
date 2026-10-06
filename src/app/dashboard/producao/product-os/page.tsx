@@ -11,7 +11,7 @@ import {
   Lightbulb, Loader2, Plus, X, Sparkles, Cpu, DollarSign, Settings2,
   AlertTriangle, CheckCircle2, FileBox, RefreshCw, Check, Ban, Package,
   Factory, Boxes, Send, Rocket, ListChecks, History, ClipboardList,
-  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star, Archive, Image as ImageIcon, Pencil, Lock, LayoutGrid,
+  Printer as PrinterIcon, TrendingUp, Gauge, Wifi, Upload, Trophy, Trash2, ExternalLink, Users, Flame, Heart, Download, Search, Layers, Eye, EyeOff, ShieldAlert, Barcode, Palette, Copy, Star, Archive, Image as ImageIcon, Pencil, Lock, LayoutGrid, Maximize2, Minimize2, Link2,
 } from 'lucide-react'
 import { usePrompt } from '@/components/ui/dialog-provider'
 // mesmo seletor de designs do Canva que a IA Criativo usa (só reusado, não alterado)
@@ -515,6 +515,8 @@ function UploadButton({ label, accept, multiple, onUploaded }: { label: string; 
 // ════════════════════════════════════════════════════════════════════
 export default function ProductOsPage() {
   const [tab, setTab] = useState<'fabrica' | 'mapa' | 'monitor' | 'ciclo' | 'producao' | 'impressoras' | 'rentabilidade' | 'radar' | 'insumos' | 'paletas'>('fabrica')
+  // link direto numa aba — ex.: ?tab=mapa&fs=1&estante=R01&lado=A abre o Mapa da farm em tela cheia (monitor da produção)
+  useEffect(() => { try { const t = new URLSearchParams(window.location.search).get('tab'); if (t === 'mapa' || t === 'monitor' || t === 'impressoras' || t === 'producao' || t === 'ciclo') setTab(t) } catch { /* */ } }, [])
   const [items, setItems] = useState<ProductDev[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -4380,6 +4382,48 @@ function FarmMapPanel() {
   const [fState, setFState] = useState<'todos' | FarmCellState>('todos'); const [q, setQ] = useState('')
   const [assigning, setAssigning] = useState<string | null>(null)   // endereço da posição livre em atribuição
   const [busy, setBusy] = useState(false); const [tickAt, setTickAt] = useState<Date | null>(null)
+  // tela cheia (monitor da produção): overlay cobrindo a tela + fullscreen do navegador quando ele deixa
+  const [fullscreen, setFullscreen] = useState(false); const [barVisible, setBarVisible] = useState(true); const [clock, setClock] = useState('')
+  const [copied, setCopied] = useState(false)
+  const barTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const enterFullscreen = useCallback(async () => { setFullscreen(true); try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen() } catch { /* sem gesto do usuário ou navegador sem suporte: fica só o overlay */ } }, [])
+  const exitFullscreen = useCallback(async () => { setFullscreen(false); try { if (document.fullscreenElement) await document.exitFullscreen() } catch { /* */ } }, [])
+  useEffect(() => {
+    const onFs = () => { if (!document.fullscreenElement) setFullscreen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(false) }
+    document.addEventListener('fullscreenchange', onFs); document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('keydown', onKey) }
+  }, [])
+  // visão salva: a URL manda (link marcado no PC da produção); senão, o último uso neste navegador
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search)
+      const saved = JSON.parse(localStorage.getItem('product-os:farmMapView') || '{}') as Record<string, string>
+      const get = (k: string) => sp.get(k) ?? saved[k] ?? ''
+      const r = get('estante'); if (r === 'R01' || r === 'R02') setFRack(r)
+      const n = get('nivel'); if (n === '1' || n === '2' || n === '3') setFLevel(Number(n) as FarmLevel)
+      const l = get('lado'); if (l === 'A' || l === 'B') setFSide(l)
+      const e = get('estado'); if (e && e in FARM_STATE_META) setFState(e as FarmCellState)
+      if (sp.get('fs') === '1') void enterFullscreen()
+    } catch { /* */ }
+    // ao sair da aba, limpa os parâmetros do mapa da URL (senão um F5 reabre o mapa sem querer)
+    return () => { try { const sp = new URLSearchParams(window.location.search); for (const k of ['tab', 'estante', 'nivel', 'lado', 'estado', 'fs']) sp.delete(k); const q = sp.toString(); window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : '')) } catch { /* */ } }
+  }, [enterFullscreen])
+  useEffect(() => {
+    try {
+      const view: Record<string, string> = { estante: fRack === 'todas' ? '' : fRack, nivel: fLevel === 'todos' ? '' : String(fLevel), lado: fSide === 'todos' ? '' : fSide, estado: fState === 'todos' ? '' : fState }
+      localStorage.setItem('product-os:farmMapView', JSON.stringify(view))
+      const sp = new URLSearchParams(window.location.search); sp.set('tab', 'mapa')
+      for (const [k, v] of Object.entries(view)) { if (v) sp.set(k, v); else sp.delete(k) }
+      if (fullscreen) sp.set('fs', '1'); else sp.delete('fs')
+      window.history.replaceState(null, '', `${window.location.pathname}?${sp.toString()}`)
+    } catch { /* */ }
+  }, [fRack, fLevel, fSide, fState, fullscreen])
+  // relógio e barra que some quando o mouse para (6s) — a TV fica só com o mapa
+  useEffect(() => { if (!fullscreen) return; const f = () => setClock(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })); f(); const t = setInterval(f, 1000); return () => clearInterval(t) }, [fullscreen])
+  const pokeBar = useCallback(() => { setBarVisible(v => v || true); if (barTimer.current) clearTimeout(barTimer.current); barTimer.current = setTimeout(() => setBarVisible(false), 6000) }, [])
+  useEffect(() => { if (!fullscreen) { setBarVisible(true); return } pokeBar(); return () => { if (barTimer.current) clearTimeout(barTimer.current) } }, [fullscreen, pokeBar])
+  const copyLink = async () => { try { const u = new URL(window.location.href); u.searchParams.set('tab', 'mapa'); u.searchParams.set('fs', '1'); await navigator.clipboard.writeText(u.toString()); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* */ } }
 
   const loadPrinters = useCallback(async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')); setErr('') } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }, [])
   useEffect(() => { void loadPrinters(); const it = setInterval(() => void loadPrinters(), 30000); return () => clearInterval(it) }, [loadPrinters])
@@ -4409,6 +4453,11 @@ function FarmMapPanel() {
   const levels = [...FARM_LEVELS].reverse().filter(l => fLevel === 'todos' || l === fLevel)   // N3 em cima, como na estante
   const visible = FARM_POSITIONS.filter(x => racks.includes(x.rack) && sides.includes(x.corr) && levels.includes(x.nivel))
   const toggleState = (st: FarmCellState) => setFState(v => v === st ? 'todos' : st)
+  // quanto menos posições na tela, maior a célula (letra legível de longe na TV)
+  const zoom = !fullscreen ? 1 : racks.length === 1 && sides.length === 1 ? (levels.length === 1 ? 2.4 : 1.9) : racks.length === 1 || sides.length === 1 ? 1.5 : 1.25
+  const viewKey = `${fRack === 'todas' ? '' : fRack}${fSide === 'todos' ? '' : '/' + fSide}` || 'tudo'
+  const setView = (v: string) => { if (v === 'tudo') { setFRack('todas'); setFSide('todos'); return } const [r, l] = v.split('/'); setFRack(r === '' || !r ? 'todas' : r as FarmRack); setFSide(l ? l as FarmSide : 'todos') }
+  const viewLabel = [fRack === 'todas' ? 'as 2 estantes' : `estante ${fRack}`, fSide === 'todos' ? 'os 2 lados' : `lado ${fSide}`, fLevel === 'todos' ? 'todos os níveis' : `nível N${fLevel}`].join(' · ')
 
   const assign = async (printerId: string, slot: string | null) => {
     setBusy(true); setErr('')
@@ -4460,33 +4509,8 @@ function FarmMapPanel() {
     )
   }
 
-  return (
-    <div className="space-y-3">
-      <p className="text-xs" style={{ color: '#a1a1aa' }}>As <b>48 posições</b> da print farm como estão no galpão: 2 estantes dupla-face, 3 níveis, 4 máquinas por prateleira. Clique numa máquina pra ver a impressão em curso, o produto, a câmera e os controles; clique numa posição livre pra posicionar uma impressora.</p>
-      {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-
-      {/* KPIs — clicar filtra por estado */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
-        <Kpi label="Posições ocupadas" value={`${kpi.posicionadas}/${FARM_POSITIONS.length}`} sub={`${FARM_POSITIONS.length - kpi.posicionadas} livre(s) · ${kpi.maquinas} máquina(s)`} accent="#a5f3fc" onClick={() => toggleState('livre')} />
-        <Kpi label="Imprimindo" value={String(kpi.printing)} sub={kpi.util != null ? `${kpi.util}% das online` : 'sem telemetria'} accent="#00E5FF" onClick={() => toggleState('printing')} />
-        <Kpi label="Ociosas" value={String(kpi.idle)} sub="prontas pra ordem" accent="#4ade80" onClick={() => toggleState('idle')} />
-        <Kpi label="Pausadas" value={String(kpi.paused)} sub="aguardando retomar" accent="#fcd34d" onClick={() => toggleState('paused')} />
-        <Kpi label="Em alerta" value={String(kpi.error)} sub="erro ou falha aberta" accent="#f87171" onClick={() => toggleState('error')} />
-        <Kpi label="Offline" value={String(kpi.offline)} sub="sem sinal do agente" accent="#71717a" onClick={() => toggleState('offline')} />
-        <Kpi label="Sem posição" value={String(unplaced.length)} sub="cadastradas, fora do mapa" accent={unplaced.length ? '#fcd34d' : '#52525b'} />
-      </div>
-
-      {/* filtros */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
-        <div className="flex items-center gap-1.5 rounded-lg px-2 py-1" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}><Search size={12} style={{ color: '#52525b' }} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="posição, máquina, produto, peça…" className="w-48 bg-transparent text-xs outline-none" style={{ color: '#fafafa' }} /></div>
-        <FilterSeg label="Estante" value={fRack} onChange={v => setFRack(v as 'todas' | FarmRack)} options={[['todas', 'Todas'], ['R01', 'R01 frente'], ['R02', 'R02 fundo']]} />
-        <FilterSeg label="Nível" value={String(fLevel)} onChange={v => setFLevel(v === 'todos' ? 'todos' : Number(v) as FarmLevel)} options={[['todos', 'Todos'], ['3', 'N3 alto'], ['2', 'N2 meio'], ['1', 'N1 baixo']]} />
-        <FilterSeg label="Corredor" value={fSide} onChange={v => setFSide(v as 'todos' | FarmSide)} options={[['todos', 'Ambos'], ['A', 'A · esquerda'], ['B', 'B · direita']]} />
-        <FilterSeg label="Estado" value={fState} onChange={v => setFState(v as 'todos' | FarmCellState)} options={[['todos', 'Todos'], ['printing', 'Imprimindo'], ['idle', 'Ociosa'], ['paused', 'Pausada'], ['error', 'Alerta'], ['offline', 'Offline'], ['livre', 'Livre']]} />
-        {(fRack !== 'todas' || fLevel !== 'todos' || fSide !== 'todos' || fState !== 'todos' || q) && <button type="button" onClick={() => { setFRack('todas'); setFLevel('todos'); setFSide('todos'); setFState('todos'); setQ('') }} className="text-[10px] font-semibold" style={{ color: '#a5f3fc' }}>limpar filtros</button>}
-        <span className="ml-auto text-[10px]" style={{ color: '#52525b' }}>{visible.length} posição(ões) · {tickAt ? `telemetria ${tickAt.toLocaleTimeString('pt-BR')}` : 'aguardando telemetria…'} · atualiza a cada 5s</span>
-      </div>
-
+  const racksView = (
+    <div className="space-y-3" style={{ zoom }}>
       {/* estantes */}
       {racks.map(rack => {
         const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
@@ -4525,6 +4549,69 @@ function FarmMapPanel() {
           </div>
         )
       })}
+
+    </div>
+  )
+
+  if (fullscreen) return (
+    <div className="fixed inset-0 z-[100] flex flex-col overflow-hidden" style={{ background: '#09090b', cursor: barVisible ? 'default' : 'none' }} onMouseMove={pokeBar} onClick={pokeBar}>
+      {/* faixa fixa: título, visão, KPIs e relógio — sempre visível na TV */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2" style={{ background: '#0d0d10', borderBottom: '1px solid #27272a' }}>
+        <div className="flex items-center gap-2"><LayoutGrid size={18} className="text-cyan-400" /><span className="text-base font-extrabold text-white">Print Farm Vazzo</span><span className="text-xs" style={{ color: '#71717a' }}>{viewLabel}</span></div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          {(['printing', 'idle', 'paused', 'error', 'offline'] as FarmCellState[]).map(k => <span key={k} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: FARM_STATE_META[k].color, boxShadow: k === 'printing' && kpi[k] > 0 ? `0 0 8px ${FARM_STATE_META[k].color}` : 'none' }} /><b style={{ color: FARM_STATE_META[k].color }}>{kpi[k]}</b><span style={{ color: '#a1a1aa' }}>{FARM_STATE_META[k].label.toLowerCase()}</span></span>)}
+          <span style={{ color: '#52525b' }}>· {kpi.posicionadas}/{FARM_POSITIONS.length} posições{unplaced.length ? ` · ${unplaced.length} sem posição` : ''}</span>
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-[11px]" style={{ color: tickAt && Date.now() - tickAt.getTime() > 30000 ? '#f87171' : '#52525b' }}>{tickAt ? `telemetria ${tickAt.toLocaleTimeString('pt-BR')}` : 'aguardando telemetria…'}</span>
+          <span className="font-mono text-2xl font-extrabold text-white">{clock}</span>
+        </div>
+      </div>
+      {/* barra de filtros: aparece com o mouse, some sozinha */}
+      <div className="flex flex-wrap items-center gap-2 px-5 py-2 transition-opacity duration-300" style={{ background: '#111114', borderBottom: '1px solid #1f1f24', opacity: barVisible ? 1 : 0, pointerEvents: barVisible ? 'auto' : 'none' }}>
+        <FilterSeg label="Visão" value={viewKey} onChange={setView} options={[['tudo', 'Tudo'], ['R01', 'R01'], ['R02', 'R02'], ['/A', 'Lado A'], ['/B', 'Lado B'], ['R01/A', 'R01·A'], ['R01/B', 'R01·B'], ['R02/A', 'R02·A'], ['R02/B', 'R02·B']]} />
+        <FilterSeg label="Nível" value={String(fLevel)} onChange={v => setFLevel(v === 'todos' ? 'todos' : Number(v) as FarmLevel)} options={[['todos', 'Todos'], ['3', 'N3'], ['2', 'N2'], ['1', 'N1']]} />
+        <FilterSeg label="Estado" value={fState} onChange={v => setFState(v as 'todos' | FarmCellState)} options={[['todos', 'Todos'], ['printing', 'Imprimindo'], ['idle', 'Ociosa'], ['error', 'Alerta'], ['offline', 'Offline'], ['livre', 'Livre']]} />
+        <button type="button" onClick={() => void copyLink()} className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a5f3fc' }}><Link2 size={12} /> {copied ? 'link copiado!' : 'copiar link desta visão'}</button>
+        <span className="text-[10px]" style={{ color: '#52525b' }}>abra o link no PC da TV: entra direto nesta visão em tela cheia</span>
+        <button type="button" onClick={() => void exitFullscreen()} className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Minimize2 size={12} /> Sair da tela cheia (Esc)</button>
+      </div>
+      {err && <div className="mx-5 mt-2 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+      <div className="flex-1 overflow-auto p-4">{racksView}</div>
+      {openPrinter && <PrinterDetailDrawer printer={openPrinter} onClose={() => setOpenPrinter(null)} onChanged={() => void loadPrinters()} />}
+    </div>
+  )
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs" style={{ color: '#a1a1aa' }}>As <b>48 posições</b> da print farm como estão no galpão: 2 estantes dupla-face, 3 níveis, 4 máquinas por prateleira. Clique numa máquina pra ver a impressão em curso, o produto, a câmera e os controles; clique numa posição livre pra posicionar uma impressora.</p>
+      {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
+
+      {/* KPIs — clicar filtra por estado */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+        <Kpi label="Posições ocupadas" value={`${kpi.posicionadas}/${FARM_POSITIONS.length}`} sub={`${FARM_POSITIONS.length - kpi.posicionadas} livre(s) · ${kpi.maquinas} máquina(s)`} accent="#a5f3fc" onClick={() => toggleState('livre')} />
+        <Kpi label="Imprimindo" value={String(kpi.printing)} sub={kpi.util != null ? `${kpi.util}% das online` : 'sem telemetria'} accent="#00E5FF" onClick={() => toggleState('printing')} />
+        <Kpi label="Ociosas" value={String(kpi.idle)} sub="prontas pra ordem" accent="#4ade80" onClick={() => toggleState('idle')} />
+        <Kpi label="Pausadas" value={String(kpi.paused)} sub="aguardando retomar" accent="#fcd34d" onClick={() => toggleState('paused')} />
+        <Kpi label="Em alerta" value={String(kpi.error)} sub="erro ou falha aberta" accent="#f87171" onClick={() => toggleState('error')} />
+        <Kpi label="Offline" value={String(kpi.offline)} sub="sem sinal do agente" accent="#71717a" onClick={() => toggleState('offline')} />
+        <Kpi label="Sem posição" value={String(unplaced.length)} sub="cadastradas, fora do mapa" accent={unplaced.length ? '#fcd34d' : '#52525b'} />
+      </div>
+
+      {/* filtros */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl p-2.5" style={{ background: '#111114', border: '1px solid #27272a' }}>
+        <div className="flex items-center gap-1.5 rounded-lg px-2 py-1" style={{ background: '#0a0a0e', border: '1px solid #27272a' }}><Search size={12} style={{ color: '#52525b' }} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="posição, máquina, produto, peça…" className="w-48 bg-transparent text-xs outline-none" style={{ color: '#fafafa' }} /></div>
+        <FilterSeg label="Estante" value={fRack} onChange={v => setFRack(v as 'todas' | FarmRack)} options={[['todas', 'Todas'], ['R01', 'R01 frente'], ['R02', 'R02 fundo']]} />
+        <FilterSeg label="Nível" value={String(fLevel)} onChange={v => setFLevel(v === 'todos' ? 'todos' : Number(v) as FarmLevel)} options={[['todos', 'Todos'], ['3', 'N3 alto'], ['2', 'N2 meio'], ['1', 'N1 baixo']]} />
+        <FilterSeg label="Corredor" value={fSide} onChange={v => setFSide(v as 'todos' | FarmSide)} options={[['todos', 'Ambos'], ['A', 'A · esquerda'], ['B', 'B · direita']]} />
+        <FilterSeg label="Estado" value={fState} onChange={v => setFState(v as 'todos' | FarmCellState)} options={[['todos', 'Todos'], ['printing', 'Imprimindo'], ['idle', 'Ociosa'], ['paused', 'Pausada'], ['error', 'Alerta'], ['offline', 'Offline'], ['livre', 'Livre']]} />
+        {(fRack !== 'todas' || fLevel !== 'todos' || fSide !== 'todos' || fState !== 'todos' || q) && <button type="button" onClick={() => { setFRack('todas'); setFLevel('todos'); setFSide('todos'); setFState('todos'); setQ('') }} className="text-[10px] font-semibold" style={{ color: '#a5f3fc' }}>limpar filtros</button>}
+        <span className="ml-auto text-[10px]" style={{ color: '#52525b' }}>{visible.length} posição(ões) · {tickAt ? `telemetria ${tickAt.toLocaleTimeString('pt-BR')}` : 'aguardando telemetria…'} · atualiza a cada 5s</span>
+        <button type="button" onClick={() => void copyLink()} title="Copia um link que abre esta visão direto em tela cheia (pra marcar no PC da TV)" className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a5f3fc' }}><Link2 size={12} /> {copied ? 'copiado!' : 'link da TV'}</button>
+        <button type="button" onClick={() => void enterFullscreen()} className="flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Maximize2 size={12} /> Tela cheia</button>
+      </div>
+
+      {racksView}
 
       {/* impressoras cadastradas que ainda não têm endereço */}
       {unplaced.length > 0 && (
