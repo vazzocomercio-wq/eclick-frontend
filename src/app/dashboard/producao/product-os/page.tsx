@@ -198,6 +198,11 @@ interface FarmStatus {
   open_failure?: { id: string; reason: string | null; detected_at: string } | null
   has_ams?: boolean; farm_slot?: string | null
   current_order?: FarmCurrentOrder | null   // OP em curso nesta impressora (produto/peça/estimativas)
+  job_product?: FarmJobProduct | null       // produto + imagem do que está rodando (OP, ou nome do arquivo casado por regra/IA/manual)
+}
+interface FarmJobProduct {
+  product_dev_id: string | null; name: string | null; image_url: string | null
+  image_kind: 'foto' | 'render' | 'referencia' | null; source: 'op' | 'regra' | 'ia' | 'manual' | null; confidence: number | null
 }
 interface FarmCurrentOrder {
   id: string; order_number: number; status: string; quantity: number
@@ -4386,6 +4391,21 @@ function FarmMapPanel() {
   const [fullscreen, setFullscreen] = useState(false); const [barVisible, setBarVisible] = useState(true); const [clock, setClock] = useState('')
   const [copied, setCopied] = useState(false)
   const barTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // zoom que FAZ CABER o mapa no monitor: mede o conteúdo e acha o fator que preenche a altura
+  // (o zoom muda a largura útil e por isso a altura — resolve em poucas iterações)
+  const fitRef = useRef<HTMLDivElement>(null); const [fit, setFit] = useState(1)
+  const solveFit = useCallback(() => {
+    const wrap = fitRef.current; const inner = wrap?.firstElementChild as HTMLElement | null
+    if (!wrap || !inner) return
+    let z = 1
+    for (let i = 0; i < 8; i++) {
+      inner.style.zoom = String(z)
+      const zn = Math.max(0.5, Math.min(3, (wrap.clientHeight - 16) / Math.max(1, inner.offsetHeight)))
+      if (Math.abs(zn - z) < 0.01) { z = zn; break }
+      z = zn
+    }
+    setFit(Math.round(z * 100) / 100)
+  }, [])
   const enterFullscreen = useCallback(async () => { setFullscreen(true); try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen() } catch { /* sem gesto do usuário ou navegador sem suporte: fica só o overlay */ } }, [])
   const exitFullscreen = useCallback(async () => { setFullscreen(false); try { if (document.fullscreenElement) await document.exitFullscreen() } catch { /* */ } }, [])
   useEffect(() => {
@@ -4423,6 +4443,12 @@ function FarmMapPanel() {
   useEffect(() => { if (!fullscreen) return; const f = () => setClock(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })); f(); const t = setInterval(f, 1000); return () => clearInterval(t) }, [fullscreen])
   const pokeBar = useCallback(() => { setBarVisible(v => v || true); if (barTimer.current) clearTimeout(barTimer.current); barTimer.current = setTimeout(() => setBarVisible(false), 6000) }, [])
   useEffect(() => { if (!fullscreen) { setBarVisible(true); return } pokeBar(); return () => { if (barTimer.current) clearTimeout(barTimer.current) } }, [fullscreen, pokeBar])
+  useEffect(() => {
+    if (!fullscreen) return
+    const t0 = setTimeout(solveFit, 50); const t1 = setTimeout(solveFit, 600)   // após as imagens entrarem
+    const it = setInterval(solveFit, 5000); window.addEventListener('resize', solveFit)
+    return () => { clearTimeout(t0); clearTimeout(t1); clearInterval(it); window.removeEventListener('resize', solveFit) }
+  }, [fullscreen, fRack, fSide, fLevel, fState, printers.length, solveFit])
   const copyLink = async () => { try { const u = new URL(window.location.href); u.searchParams.set('tab', 'mapa'); u.searchParams.set('fs', '1'); await navigator.clipboard.writeText(u.toString()); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* */ } }
 
   const loadPrinters = useCallback(async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')); setErr('') } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }, [])
@@ -4453,8 +4479,8 @@ function FarmMapPanel() {
   const levels = [...FARM_LEVELS].reverse().filter(l => fLevel === 'todos' || l === fLevel)   // N3 em cima, como na estante
   const visible = FARM_POSITIONS.filter(x => racks.includes(x.rack) && sides.includes(x.corr) && levels.includes(x.nivel))
   const toggleState = (st: FarmCellState) => setFState(v => v === st ? 'todos' : st)
-  // quanto menos posições na tela, maior a célula (letra legível de longe na TV)
-  const zoom = !fullscreen ? 1 : racks.length === 1 && sides.length === 1 ? (levels.length === 1 ? 2.4 : 1.9) : racks.length === 1 || sides.length === 1 ? 1.5 : 1.25
+  // na tela cheia o zoom é o que faz o mapa preencher o monitor (menos posições → células maiores)
+  const zoom = fullscreen ? fit : 1
   const viewKey = `${fRack === 'todas' ? '' : fRack}${fSide === 'todos' ? '' : '/' + fSide}` || 'tudo'
   const setView = (v: string) => { if (v === 'tudo') { setFRack('todas'); setFSide('todos'); return } const [r, l] = v.split('/'); setFRack(r === '' || !r ? 'todas' : r as FarmRack); setFSide(l ? l as FarmSide : 'todos') }
   const viewLabel = [fRack === 'todas' ? 'as 2 estantes' : `estante ${fRack}`, fSide === 'todos' ? 'os 2 lados' : `lado ${fSide}`, fLevel === 'todos' ? 'todos os níveis' : `nível N${fLevel}`].join(' · ')
@@ -4468,7 +4494,8 @@ function FarmMapPanel() {
   const renderCell = (pos: FarmPosition) => {
     const p = bySlot.get(pos.end); const lv = p ? live[p.id] : undefined; const st = farmCellState(p, lv); const meta = FARM_STATE_META[st]
     const dim = (fState !== 'todos' && st !== fState) || !matchesText(p, lv, pos)
-    const co = lv?.current_order; const printing = st === 'printing' || st === 'paused'; const isAssigning = assigning === pos.end
+    const co = lv?.current_order; const jp = lv?.job_product; const printing = st === 'printing' || st === 'paused'; const isAssigning = assigning === pos.end
+    const produto = jp?.name ?? co?.product_name ?? null
     return (
       <div key={pos.end} onClick={() => { if (p) setOpenPrinter(p); else setAssigning(isAssigning ? null : pos.end) }}
         className="cursor-pointer rounded-lg p-2 transition-all hover:border-cyan-700"
@@ -4482,14 +4509,28 @@ function FarmMapPanel() {
           <>
             <p className="mt-1 truncate text-[11px] font-bold text-white" title={p.name}>{p.name}{p.has_ams ? <span className="ml-1 text-[8px] font-semibold" style={{ color: '#71717a' }}>AMS</span> : null}</p>
             {printing && (
-              <>
-                <p className="truncate text-[10px]" style={{ color: '#d4d4d8' }} title={co?.product_name ?? lv?.job_name ?? ''}>{co?.product_name ?? lv?.job_name ?? '—'}{co?.part_name ? ` · ${co.part_name}` : ''}</p>
+              <div className="mt-1.5">
+                {/* imagem GRANDE do produto (foto real > render > referência); sem imagem, o nome em destaque */}
+                <div className="relative w-full overflow-hidden rounded-md" style={{ aspectRatio: '4 / 3', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
+                  {jp?.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center p-2 text-center text-[12px] font-bold leading-tight" style={{ color: produto ? '#d4d4d8' : '#71717a' }}>{produto ?? lv?.job_name ?? 'imprimindo'}</div>
+                  )}
+                  {jp?.image_kind && <span className="absolute left-1 top-1 rounded px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ background: 'rgba(0,0,0,0.65)', color: jp.image_kind === 'foto' ? '#4ade80' : '#a5f3fc' }}>{jp.image_kind}</span>}
+                  {jp && !jp.product_dev_id && <span className="absolute right-1 top-1 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(252,211,77,0.85)', color: '#111' }}>produto?</span>}
+                  <div className="absolute inset-x-0 bottom-0 px-1.5 pb-1 pt-4" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.9))' }}>
+                    <p className="truncate text-[11px] font-extrabold text-white" title={produto ?? lv?.job_name ?? ''}>{produto ?? lv?.job_name ?? '—'}</p>
+                    {produto && co?.part_name && <p className="truncate text-[9px]" style={{ color: '#d4d4d8' }}>{co.part_name}</p>}
+                  </div>
+                </div>
                 <div className="mt-1 flex items-center gap-1.5">
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${lv?.progress_pct ?? 0}%`, background: meta.color }} /></div>
                   <span className="text-[10px] font-bold" style={{ color: meta.color }}>{Math.round(lv?.progress_pct ?? 0)}%</span>
                 </div>
-                <p className="mt-0.5 truncate text-[9px]" style={{ color: '#71717a' }}>resta {fmtMin(lv?.remaining_minutes)}{lv?.layer_total ? ` · cam. ${lv.layer_current ?? 0}/${lv.layer_total}` : ''}{co ? ` · OP #${co.order_number}` : ''}</p>
-              </>
+                <p className="mt-0.5 truncate text-[9px]" style={{ color: '#71717a' }} title={lv?.job_name ?? ''}>resta {fmtMin(lv?.remaining_minutes)}{lv?.layer_total ? ` · cam. ${lv.layer_current ?? 0}/${lv.layer_total}` : ''}{co ? ` · OP #${co.order_number}` : ''}</p>
+              </div>
             )}
             {st === 'idle' && <p className="mt-0.5 text-[9px]" style={{ color: '#71717a' }}>{lv?.nozzle_temp != null ? `bico ${Math.round(lv.nozzle_temp)}° · ` : ''}pronta pra próxima ordem</p>}
             {st === 'error' && <p className="mt-0.5 truncate text-[9px]" style={{ color: '#f87171' }} title={lv?.open_failure?.reason ?? lv?.error_text ?? ''}>{lv?.open_failure?.reason ?? lv?.error_text ?? `erro ${lv?.error_code ?? ''}`}</p>}
@@ -4577,7 +4618,7 @@ function FarmMapPanel() {
         <button type="button" onClick={() => void exitFullscreen()} className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Minimize2 size={12} /> Sair da tela cheia (Esc)</button>
       </div>
       {err && <div className="mx-5 mt-2 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      <div className="flex-1 overflow-auto p-4">{racksView}</div>
+      <div ref={fitRef} className="flex-1 overflow-auto p-4">{racksView}</div>
       {openPrinter && <PrinterDetailDrawer printer={openPrinter} onClose={() => setOpenPrinter(null)} onChanged={() => void loadPrinters()} />}
     </div>
   )
@@ -5156,6 +5197,14 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
   const [editing, setEditing] = useState(false); const [savingEdit, setSavingEdit] = useState(false)
   const [ef, setEf] = useState({ name: printer.name, brand: printer.brand ?? '', model: printer.model ?? '', build_volume_mm: printer.build_volume_mm ?? '', acquisition_cost: String(printer.acquisition_cost ?? ''), expected_lifetime_hours: printer.expected_lifetime_hours != null ? String(printer.expected_lifetime_hours) : '', status: printer.status, serial_number: printer.serial_number ?? '', lan_ip: printer.lan_ip ?? '', farm_slot: printer.farm_slot ?? '' })
   const [others, setOthers] = useState<Printer[]>([])   // pra marcar posições já ocupadas no select
+  // "de que produto é este arquivo?" — lista de produtos pra correção manual (carrega ao abrir o seletor)
+  const [fixing, setFixing] = useState(false); const [devsList, setDevsList] = useState<ProductDev[]>([]); const [fixMsg, setFixMsg] = useState('')
+  useEffect(() => { if (!fixing || devsList.length) return; void (async () => { try { setDevsList((await api<ProductDev[]>('/product-os')).filter(d => d.status !== 'arquivado').sort((a, b) => a.name.localeCompare(b.name))) } catch { /* */ } })() }, [fixing, devsList.length])
+  const fixJobProduct = async (jobName: string, productDevId: string | null) => {
+    setFixMsg('')
+    try { await api('/product-os/farm/job-product', { method: 'POST', body: JSON.stringify({ job_name: jobName, product_dev_id: productDevId }) }); setFixMsg('Gravado: vale para todas as vezes que este arquivo rodar.'); setFixing(false); await loadLive() }
+    catch (e) { setFixMsg(e instanceof Error ? e.message : 'Erro') }
+  }
   useEffect(() => { if (!editing) return; void (async () => { try { setOthers(await api<Printer[]>('/product-os/printers')) } catch { /* */ } })() }, [editing])
   const setE = (k: keyof typeof ef, v: string) => setEf(s => ({ ...s, [k]: v }))
   const saveEdit = async () => {
@@ -5251,7 +5300,7 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
                 <div className="mb-3 rounded-lg p-3" style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.25)' }}>
                   <div className="flex items-start gap-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {co.thumbnail_url && <img src={co.thumbnail_url} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }} />}
+                    {(live.job_product?.image_url ?? co.thumbnail_url) && <img src={live.job_product?.image_url ?? co.thumbnail_url ?? ''} alt="" className="h-24 w-24 shrink-0 rounded-lg object-cover" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }} />}
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Impressão atual · OP #{co.order_number}{co.status === 'pausado' ? ' · pausada' : ''}</p>
                       <p className="truncate text-sm font-bold text-white">{co.product_name ?? live.job_name ?? '—'}</p>
@@ -5272,6 +5321,38 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
                     <Stat label="Mesa" value={live.bed_temp != null ? `${Math.round(live.bed_temp)}°C` : '—'} />
                   </div>
                   {co.due_at && <p className="mt-1.5 text-[10px]" style={{ color: late ? '#f87171' : '#71717a' }}>{late ? '⚠️ vai estourar o ' : ''}prazo da ordem: {new Date(co.due_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>}
+                </div>
+              )
+            })()}
+
+            {/* job mandado direto pelo Studio (sem OP): produto identificado pelo nome do arquivo + correção manual */}
+            {live && !live.current_order && (live.state === 'printing' || live.state === 'paused') && live.job_name && (() => {
+              const jp = live.job_product; const jobName = live.job_name
+              return (
+                <div className="mb-3 rounded-lg p-3" style={{ background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.25)' }}>
+                  <div className="flex items-start gap-3">
+                    <div className="h-28 w-28 shrink-0 overflow-hidden rounded-lg" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {jp?.image_url ? <img src={jp.image_url} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center p-2 text-center text-[10px]" style={{ color: '#52525b' }}>sem imagem</div>}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>Impressão atual · enviada pelo Studio (sem ordem)</p>
+                      <p className="truncate text-sm font-bold text-white">{jp?.name ?? 'Produto não identificado'}</p>
+                      <p className="truncate text-[10px]" style={{ color: '#52525b' }} title={jobName}>arquivo {jobName}</p>
+                      {jp?.source && <p className="mt-0.5 text-[10px]" style={{ color: '#71717a' }}>identificado por {jp.source === 'manual' ? 'você' : jp.source === 'ia' ? 'IA' : jp.source === 'regra' ? 'nome do arquivo' : 'ordem'}{jp.confidence != null && jp.source !== 'manual' ? ` · ${Math.round(jp.confidence * 100)}%` : ''}{jp.image_kind ? ` · imagem: ${jp.image_kind}` : ''}</p>}
+                      <button type="button" onClick={() => setFixing(f => !f)} className="mt-1.5 rounded px-2 py-1 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.10)', color: '#a5f3fc', border: '1px solid #27272a' }}>{fixing ? 'cancelar' : jp?.product_dev_id ? 'Produto errado? corrigir' : 'Dizer qual é o produto'}</button>
+                    </div>
+                  </div>
+                  {fixing && (
+                    <div className="mt-2">
+                      <select defaultValue="" onChange={e => { const v = e.target.value; if (v === '__none') void fixJobProduct(jobName, null); else if (v) void fixJobProduct(jobName, v) }} className="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+                        <option value="">{devsList.length ? 'Escolha o produto deste arquivo…' : 'Carregando produtos…'}</option>
+                        {devsList.map(d => <option key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</option>)}
+                        <option value="__none">— não é produto do catálogo —</option>
+                      </select>
+                    </div>
+                  )}
+                  {fixMsg && <p className="mt-1 text-[10px]" style={{ color: fixMsg.startsWith('[') ? '#f87171' : '#4ade80' }}>{fixMsg}</p>}
                 </div>
               )
             })()}
