@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, useMemo, type CSSProperties } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo, Fragment, type CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors,
@@ -4391,21 +4391,6 @@ function FarmMapPanel() {
   const [fullscreen, setFullscreen] = useState(false); const [barVisible, setBarVisible] = useState(true); const [clock, setClock] = useState('')
   const [copied, setCopied] = useState(false)
   const barTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // zoom que FAZ CABER o mapa no monitor: mede o conteúdo e acha o fator que preenche a altura
-  // (o zoom muda a largura útil e por isso a altura — resolve em poucas iterações)
-  const fitRef = useRef<HTMLDivElement>(null); const [fit, setFit] = useState(1)
-  const solveFit = useCallback(() => {
-    const wrap = fitRef.current; const inner = wrap?.firstElementChild as HTMLElement | null
-    if (!wrap || !inner) return
-    let z = 1
-    for (let i = 0; i < 8; i++) {
-      inner.style.zoom = String(z)
-      const zn = Math.max(0.6, Math.min(3, (wrap.clientHeight - 8) / Math.max(1, inner.offsetHeight)))
-      if (Math.abs(zn - z) < 0.01) { z = zn; break }
-      z = zn
-    }
-    setFit(Math.round(z * 100) / 100)
-  }, [])
   const enterFullscreen = useCallback(async () => { setFullscreen(true); try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen() } catch { /* sem gesto do usuário ou navegador sem suporte: fica só o overlay */ } }, [])
   const exitFullscreen = useCallback(async () => { setFullscreen(false); try { if (document.fullscreenElement) await document.exitFullscreen() } catch { /* */ } }, [])
   useEffect(() => {
@@ -4443,12 +4428,6 @@ function FarmMapPanel() {
   useEffect(() => { if (!fullscreen) return; const f = () => setClock(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })); f(); const t = setInterval(f, 1000); return () => clearInterval(t) }, [fullscreen])
   const pokeBar = useCallback(() => { setBarVisible(v => v || true); if (barTimer.current) clearTimeout(barTimer.current); barTimer.current = setTimeout(() => setBarVisible(false), 6000) }, [])
   useEffect(() => { if (!fullscreen) { setBarVisible(true); return } pokeBar(); return () => { if (barTimer.current) clearTimeout(barTimer.current) } }, [fullscreen, pokeBar])
-  useEffect(() => {
-    if (!fullscreen) return   // fora da tela cheia a página rola normalmente (uso no escritório: olhar, mexer, editar)
-    const t0 = setTimeout(solveFit, 50); const t1 = setTimeout(solveFit, 600)   // após as imagens entrarem
-    const it = setInterval(solveFit, 5000); window.addEventListener('resize', solveFit)
-    return () => { clearTimeout(t0); clearTimeout(t1); clearInterval(it); window.removeEventListener('resize', solveFit) }
-  }, [fullscreen, fRack, fSide, fLevel, fState, printers.length, solveFit])
   const copyLink = async () => { try { const u = new URL(window.location.href); u.searchParams.set('tab', 'mapa'); u.searchParams.set('fs', '1'); await navigator.clipboard.writeText(u.toString()); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* */ } }
 
   const loadPrinters = useCallback(async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')); setErr('') } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } }, [])
@@ -4479,8 +4458,6 @@ function FarmMapPanel() {
   const levels = [...FARM_LEVELS].reverse().filter(l => fLevel === 'todos' || l === fLevel)   // N3 em cima, como na estante
   const visible = FARM_POSITIONS.filter(x => racks.includes(x.rack) && sides.includes(x.corr) && levels.includes(x.nivel))
   const toggleState = (st: FarmCellState) => setFState(v => v === st ? 'todos' : st)
-  // tela cheia = acompanhamento: a visão escolhida PREENCHE o monitor sem rolagem. Fora dela, tamanho natural.
-  const zoom = fullscreen ? fit : 1
   const viewKey = `${fRack === 'todas' ? '' : fRack}${fSide === 'todos' ? '' : '/' + fSide}` || 'tudo'
   const setView = (v: string) => { if (v === 'tudo') { setFRack('todas'); setFSide('todos'); return } const [r, l] = v.split('/'); setFRack(r === '' || !r ? 'todas' : r as FarmRack); setFSide(l ? l as FarmSide : 'todos') }
   const viewLabel = [fRack === 'todas' ? 'as 2 estantes' : `estante ${fRack}`, fSide === 'todos' ? 'os 2 lados' : `lado ${fSide}`, fLevel === 'todos' ? 'todos os níveis' : `nível N${fLevel}`].join(' · ')
@@ -4497,8 +4474,10 @@ function FarmMapPanel() {
   }
 
   const PILL: Record<FarmCellState, string> = { printing: 'Trabalhando', paused: 'Pausada', error: 'Alerta', idle: 'Ociosa', offline: 'Offline', livre: 'Livre' }
-  // Cartão da posição — padrão do mockup do cliente: posição + status · imagem pequena + nome ·
-  // barra com % · tempos · material/cor e temperaturas. Mesmo tamanho pra todas as posições.
+  // Cartão da posição (padrão do mockup do cliente). O cartão é um CONTAINER: imagem, fontes e espaços
+  // são frações do tamanho dele (cqw/cqh), então o mesmo cartão serve pequeno na visão "Tudo" e grande
+  // na visão de um lado só. Na tela cheia ele preenche a célula da grade; fora dela é quase quadrado.
+  const fs = (minPx: number, cq: number, maxPx: number) => `clamp(${minPx}px, ${cq}cqw, ${maxPx}px)`
   const renderCell = (pos: FarmPosition) => {
     const p = bySlot.get(pos.end); const lv = p ? live[p.id] : undefined; const st = farmCellState(p, lv); const meta = FARM_STATE_META[st]
     const dim = (fState !== 'todos' && st !== fState) || !matchesText(p, lv, pos)
@@ -4512,60 +4491,61 @@ function FarmMapPanel() {
     const elapsed = co?.started_at ? Math.max(0, Math.round((Date.now() - new Date(co.started_at).getTime()) / 60000)) : null
     const titulo = !p ? '' : printing ? (produto ?? lv?.job_name ?? '—') : st === 'idle' ? 'Sem impressão' : st === 'offline' ? 'Sem sinal' : (lv?.open_failure ? `Falha: ${lv.open_failure.reason ?? ''}` : (lv?.error_text ?? `Erro ${lv?.error_code ?? ''}`))
     const subtitulo = !p ? '' : printing ? (co?.part_name ?? (jp && !jp.product_dev_id ? 'produto não identificado' : (lv?.layer_total ? `camada ${lv.layer_current ?? 0}/${lv.layer_total}` : ''))) : st === 'idle' ? 'aguardando tarefa' : st === 'offline' ? (lv?.bound ? 'agente sem contato' : 'sem nº de série') : ''
+    const small = fs(10, 3.2, 18), mid = fs(11, 3.6, 20)
     return (
       <div key={pos.end} onClick={() => { if (p) setOpenPrinter(p); else setAssigning(isAssigning ? null : pos.end) }}
-        className="flex cursor-pointer flex-col rounded-lg p-2 transition-all hover:border-cyan-700"
-        style={{ background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1, aspectRatio: '1 / 1.05', minHeight: 140 }}>
-        {/* linha 1: posição + status + sinais */}
-        <div className="flex items-center gap-1">
-          <span className="font-mono text-[11px] font-extrabold" style={{ color: p ? '#fafafa' : '#71717a' }}>{pos.end}</span>
-          <span className="rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ background: `${meta.color}22`, color: meta.color, border: `1px solid ${meta.color}55` }}>{PILL[st]}</span>
-          {p && <span className="ml-auto flex items-center gap-1">{lv?.camera_url && <Eye size={10} style={{ color: '#71717a' }} />}<Wifi size={10} style={{ color: lv?.online ? '#4ade80' : '#3f3f46' }} /></span>}
+        className="flex h-full min-h-0 min-w-0 cursor-pointer flex-col overflow-hidden rounded-lg transition-all hover:border-cyan-700"
+        style={{ containerType: 'size', boxSizing: 'border-box', padding: 'clamp(6px, 2.2cqw, 14px)', gap: 'clamp(3px, 1.4cqh, 10px)', background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1, ...(fullscreen ? {} : { aspectRatio: '1 / 1.05', minHeight: 150 }) }}>
+        {/* cabeçalho: código da posição (1 linha) + estado + sinais */}
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="font-mono font-extrabold" style={{ fontSize: fs(12, 4, 22), whiteSpace: 'nowrap', color: p ? '#fafafa' : '#71717a' }}>{pos.end}</span>
+          <span className="truncate rounded-full font-bold uppercase tracking-wide" style={{ fontSize: fs(8, 2.6, 15), padding: '0.15em 0.6em', background: `${meta.color}22`, color: meta.color, border: `1px solid ${meta.color}55` }}>{PILL[st]}</span>
+          {p && <span className="ml-auto flex shrink-0 items-center gap-1">{lv?.camera_url && <Eye style={{ width: fs(9, 3, 16), height: fs(9, 3, 16), color: '#71717a' }} />}<Wifi style={{ width: fs(9, 3, 16), height: fs(9, 3, 16), color: lv?.online ? '#4ade80' : '#3f3f46' }} /></span>}
         </div>
         {p ? (
           <>
-            {/* linha 2: imagem pequena + nome */}
-            <div className="mt-1.5 flex items-center gap-2">
-              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md" style={{ background: '#0a0a0e', border: '1px solid #1f1f24' }}>
+            {/* centro: imagem (≈42% da altura) + nome / camada */}
+            <div className="flex min-h-0 flex-1 items-center" style={{ gap: 'clamp(6px, 2.5cqw, 16px)' }}>
+              <div className="shrink-0 overflow-hidden rounded-md" style={{ height: 'min(42cqh, 100%)', aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
                 {printing && jp?.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
-                ) : <div className="flex h-full w-full items-center justify-center"><PrinterIcon size={16} style={{ color: '#3f3f46' }} /></div>}
+                ) : <div className="flex h-full w-full items-center justify-center"><PrinterIcon style={{ width: '45%', height: '45%', color: '#3f3f46' }} /></div>}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="line-clamp-2 text-[11px] font-bold leading-tight" style={{ color: st === 'error' ? '#fca5a5' : '#fafafa' }} title={titulo}>{titulo}</p>
-                <p className="truncate text-[9px]" style={{ color: '#71717a' }} title={subtitulo}>{subtitulo}</p>
+                <p className="line-clamp-2 font-bold leading-tight" style={{ fontSize: fs(13, 5, 28), color: st === 'error' ? '#fca5a5' : '#fafafa' }} title={titulo}>{titulo}</p>
+                <p className="truncate" style={{ fontSize: small, color: '#71717a', marginTop: '0.2em' }} title={subtitulo}>{subtitulo}</p>
               </div>
             </div>
-            {/* linha 3: progresso */}
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${printing ? (lv?.progress_pct ?? 0) : 0}%`, background: meta.color }} /></div>
-              <span className="w-8 text-right text-[10px] font-bold" style={{ color: printing ? meta.color : '#3f3f46' }}>{printing ? `${Math.round(lv?.progress_pct ?? 0)}%` : '—'}</span>
+            {/* rodapé: barra + % · decorrido | restante · ETA · material | cor · bico | mesa */}
+            <div className="shrink-0" style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(2px, 1cqh, 8px)' }}>
+              <div className="flex items-center" style={{ gap: '0.5em', fontSize: mid }}>
+                <div className="flex-1 overflow-hidden rounded-full" style={{ height: 'clamp(5px, 2.2cqh, 12px)', background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${printing ? (lv?.progress_pct ?? 0) : 0}%`, background: meta.color }} /></div>
+                <span className="font-extrabold" style={{ minWidth: '2.6em', textAlign: 'right', color: printing ? meta.color : '#3f3f46' }}>{printing ? `${Math.round(lv?.progress_pct ?? 0)}%` : '—'}</span>
+              </div>
+              <div className="flex items-center justify-between" style={{ fontSize: small, color: printing ? '#a1a1aa' : '#3f3f46' }}>
+                <span title="decorrido">{printing && elapsed != null ? fmtMin(elapsed) : '- | -'}</span>
+                <span title="restante · término">{printing ? `${fmtMin(lv?.remaining_minutes)}${eta ? ` · ${eta}` : ''}` : ''}</span>
+              </div>
+              <div className="flex items-center justify-between" style={{ fontSize: small, gap: '0.5em', color: '#71717a' }}>
+                <span className="flex min-w-0 items-center truncate" style={{ gap: '0.3em' }}>{corHex && <span className="shrink-0 rounded-full" style={{ width: '0.7em', height: '0.7em', background: corHex, border: '1px solid #3f3f46' }} />}<span className="truncate">{material ?? '—'}{cor ? ` | ${cor}` : ''}</span></span>
+                <span className="shrink-0">{lv?.nozzle_temp != null ? `${Math.round(lv.nozzle_temp)}°` : '-'} | {lv?.bed_temp != null ? `${Math.round(lv.bed_temp)}°` : '-'}</span>
+              </div>
+              {st === 'error' && lv?.open_failure && <button type="button" onClick={e => { e.stopPropagation(); void ackFail(p.id, lv.open_failure!.id, false) }} title="Fecha o alerta no painel (a impressão continua)" className="rounded font-bold" style={{ fontSize: small, padding: '0.2em 0.6em', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.4)' }}>Reconhecer</button>}
             </div>
-            {/* linha 4: decorrido | restante · término */}
-            <div className="mt-1 flex items-center justify-between text-[9px]" style={{ color: printing ? '#a1a1aa' : '#3f3f46' }}>
-              <span title="decorrido">{printing && elapsed != null ? fmtMin(elapsed) : '- | -'}</span>
-              <span title="restante · término">{printing ? `${fmtMin(lv?.remaining_minutes)}${eta ? ` · ${eta}` : ''}` : ''}</span>
-            </div>
-            {/* linha 5: material | cor · bico° | mesa° */}
-            <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-[9px]" style={{ color: p ? '#71717a' : '#3f3f46' }}>
-              <span className="flex min-w-0 items-center gap-1 truncate">{corHex && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: corHex, border: '1px solid #3f3f46' }} />}<span className="truncate">{material ?? '—'}{cor ? ` | ${cor}` : ''}</span></span>
-              <span className="shrink-0">{lv?.nozzle_temp != null ? `${Math.round(lv.nozzle_temp)}°` : '-'} | {lv?.bed_temp != null ? `${Math.round(lv.bed_temp)}°` : '-'}</span>
-            </div>
-            {st === 'error' && lv?.open_failure && <button type="button" onClick={e => { e.stopPropagation(); void ackFail(p.id, lv.open_failure!.id, false) }} title="Fecha o alerta no painel (a impressão continua)" className="mt-1 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.4)' }}>Reconhecer</button>}
           </>
         ) : (
-          <div className="mt-1.5 flex flex-1 flex-col items-center justify-center text-center" onClick={e => { if (isAssigning) e.stopPropagation() }}>
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center" onClick={e => { if (isAssigning) e.stopPropagation() }}>
             {isAssigning ? (
-              <select autoFocus disabled={busy} defaultValue="" onChange={e => { if (e.target.value) void assign(e.target.value, pos.end) }} className="w-full rounded px-1.5 py-1 text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
+              <select autoFocus disabled={busy} defaultValue="" onChange={e => { if (e.target.value) void assign(e.target.value, pos.end) }} className="w-full rounded px-1.5 py-1 outline-none" style={{ fontSize: small, background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
                 <option value="">Qual impressora vai aqui?</option>
                 {printers.filter(x => x.status !== 'aposentada').map(x => <option key={x.id} value={x.id}>{x.name}{x.farm_slot ? ` (hoje em ${x.farm_slot})` : ''}</option>)}
               </select>
             ) : (
               <>
-                <PrinterIcon size={18} style={{ color: '#27272a' }} />
-                <p className="mt-1 text-[9px]" style={{ color: '#3f3f46' }}>posição livre</p>
-                <p className="text-[8px]" style={{ color: '#3f3f46' }}>+ posicionar máquina</p>
+                <PrinterIcon style={{ width: '18%', height: '18%', color: '#27272a' }} />
+                <p style={{ fontSize: small, color: '#3f3f46', marginTop: '0.4em' }}>posição livre</p>
+                <p style={{ fontSize: fs(8, 2.6, 14), color: '#3f3f46' }}>+ posicionar máquina</p>
               </>
             )}
           </div>
@@ -4575,46 +4555,48 @@ function FarmMapPanel() {
   }
 
   const racksView = (
-    <div style={{ zoom }}>
-      <div className="space-y-3">
-        {racks.map(rack => {
-          const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
-          const rackPrinting = rackPrinters.filter(x => farmCellState(x, live[x.id]) === 'printing').length
-          const rackUtil = rackPrinters.length ? Math.round((rackPrinting / rackPrinters.length) * 100) : 0
-          return (
-            <div key={rack} className="rounded-xl p-3" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <Layers size={14} className="text-cyan-400" />
-                <span className="text-sm font-extrabold text-white">{FARM_RACK_LABEL[rack]}</span>
-                <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.08)', color: '#a5f3fc' }}>{rackPrinters.length} impressora{rackPrinters.length === 1 ? '' : 's'}</span>
-                <div className="ml-auto flex items-center gap-1.5 text-[10px]" style={{ color: '#71717a' }}>Utilização: <b style={{ color: '#fafafa' }}>{rackUtil}%</b><div className="h-1.5 w-24 overflow-hidden rounded-full" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><div className="h-full" style={{ width: `${rackUtil}%`, background: '#00E5FF' }} /></div></div>
-              </div>
-              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${sides.length}, minmax(0, 1fr))` }}>
-                {sides.map(side => (
-                  <div key={side} className="rounded-lg p-2" style={{ background: '#111114', border: '1px solid #1f1f24' }}>
-                    <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px]">
-                      <span className="rounded px-1.5 py-0.5 font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF' }}>LADO {side}</span>
-                      <span style={{ color: '#71717a' }}>corredor {side === 'A' ? 'da esquerda' : 'da direita'} · visto do corredor: <b style={{ color: '#a1a1aa' }}>{side === 'A' ? '04 ← 01' : '01 → 04'}</b></span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {levels.map(nivel => {
-                        let cells = FARM_POSITIONS.filter(x => x.rack === rack && x.corr === side && x.nivel === nivel)
-                        if (side === 'A') cells = [...cells].reverse()
-                        return (
-                          <div key={nivel} className="flex items-stretch gap-1.5">
-                            <div className="flex w-7 shrink-0 items-center justify-center rounded" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><span className="text-[10px] font-extrabold" style={{ color: '#a5f3fc' }}>N{nivel}</span></div>
-                            <div className="grid flex-1 grid-cols-4 gap-1.5">{cells.map(renderCell)}</div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
+    <div className={fullscreen ? 'grid min-h-0 flex-1 gap-2' : 'space-y-3'} style={fullscreen ? { gridTemplateRows: `repeat(${racks.length}, minmax(0, 1fr))` } : undefined}>
+      {racks.map(rack => {
+        const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
+        const rackPrinting = rackPrinters.filter(x => farmCellState(x, live[x.id]) === 'printing').length
+        const rackUtil = rackPrinters.length ? Math.round((rackPrinting / rackPrinters.length) * 100) : 0
+        const cols = `auto repeat(${sides.length}, minmax(0, 1fr))`
+        return (
+          <div key={rack} className="flex min-h-0 flex-col rounded-xl p-2.5" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
+            <div className="mb-1.5 flex shrink-0 flex-wrap items-center gap-2">
+              <Layers size={14} className="text-cyan-400" />
+              <span className="text-sm font-extrabold text-white">{FARM_RACK_LABEL[rack]}</span>
+              <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.08)', color: '#a5f3fc' }}>{rackPrinters.length} impressora{rackPrinters.length === 1 ? '' : 's'}</span>
+              <div className="ml-auto flex items-center gap-1.5 text-[10px]" style={{ color: '#71717a' }}>Utilização: <b style={{ color: '#fafafa' }}>{rackUtil}%</b><div className="h-1.5 w-24 overflow-hidden rounded-full" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><div className="h-full" style={{ width: `${rackUtil}%`, background: '#00E5FF' }} /></div></div>
             </div>
-          )
-        })}
-      </div>
+            {/* cabeçalho dos lados */}
+            <div className="mb-1 grid shrink-0 gap-2" style={{ gridTemplateColumns: cols }}>
+              <div className="w-7" />
+              {sides.map(side => (
+                <div key={side} className="flex flex-wrap items-center gap-2 text-[10px]">
+                  <span className="rounded px-1.5 py-0.5 font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF' }}>LADO {side}</span>
+                  <span style={{ color: '#71717a' }}>corredor {side === 'A' ? 'da esquerda' : 'da direita'} · visto do corredor: <b style={{ color: '#a1a1aa' }}>{side === 'A' ? '04 ← 01' : '01 → 04'}</b></span>
+                </div>
+              ))}
+            </div>
+            {/* prateleiras: uma linha por nível; na tela cheia as linhas dividem a altura em partes iguais */}
+            <div className="grid min-h-0 flex-1 gap-2" style={{ gridTemplateColumns: cols, gridTemplateRows: fullscreen ? `repeat(${levels.length}, minmax(0, 1fr))` : undefined }}>
+              {levels.map(nivel => (
+                <Fragment key={nivel}>
+                  <div className="flex w-7 items-center justify-center rounded" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><span className="text-[10px] font-extrabold" style={{ color: '#a5f3fc' }}>N{nivel}</span></div>
+                  {sides.map(side => {
+                    let cells = FARM_POSITIONS.filter(x => x.rack === rack && x.corr === side && x.nivel === nivel)
+                    if (side === 'A') cells = [...cells].reverse()
+                    return <div key={side} className="grid min-h-0 grid-cols-4 gap-1.5 rounded-lg p-1.5" style={{ background: '#111114', border: '1px solid #1f1f24' }}>{cells.map(renderCell)}</div>
+                  })}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+      {!fullscreen && (
+        <>
       {/* impressoras cadastradas que ainda não têm endereço */}
       {unplaced.length > 0 && (
         <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid rgba(252,211,77,0.35)' }}>
@@ -4638,6 +4620,8 @@ function FarmMapPanel() {
         </div>
       )}
 
+        </>
+      )}
     </div>
   )
 
@@ -4665,7 +4649,7 @@ function FarmMapPanel() {
         <button type="button" onClick={() => void exitFullscreen()} className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Minimize2 size={12} /> Sair da tela cheia (Esc)</button>
       </div>
       {err && <div className="mx-5 mt-2 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      <div ref={fitRef} className="flex-1 overflow-auto p-4">{racksView}</div>
+      <div className="flex min-h-0 flex-1 flex-col p-3">{racksView}</div>
       {openPrinter && <PrinterDetailDrawer printer={openPrinter} onClose={() => setOpenPrinter(null)} onChanged={() => void loadPrinters()} />}
     </div>
   )
