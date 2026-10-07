@@ -4475,6 +4475,7 @@ function FarmMapPanel() {
   const toggleState = (st: FarmCellState) => setFState(v => v === st ? 'todos' : st)
   const legacyAll = fullscreen && racks.length === 2 && sides.length === 2   // "Tudo" na tela cheia
   const scaleCard = fullscreen && !legacyAll                                     // cartão que escala (R01/R02, lados, níveis)
+  const wideCard = scaleCard && sides.length === 1                               // um lado só = 4 por linha = cartão largo → layout horizontal
   useEffect(() => {
     if (!legacyAll) return
     const t0 = setTimeout(solveFit, 50); const t1 = setTimeout(solveFit, 600)
@@ -4500,7 +4501,7 @@ function FarmMapPanel() {
   // Cartão da posição (padrão do mockup do cliente). O cartão é um CONTAINER: imagem, fontes e espaços
   // são frações do tamanho dele (cqw/cqh), então o mesmo cartão serve pequeno na visão "Tudo" e grande
   // na visão de um lado só. Na tela cheia ele preenche a célula da grade; fora dela é quase quadrado.
-  const fs = (minPx: number, cq: number, maxPx: number) => scaleCard ? `clamp(${minPx}px, min(${cq * 0.9}cqw, ${cq * 1.6}cqh), ${maxPx}px)` : `${minPx}px`
+  const fs = (minPx: number, cq: number, maxPx: number) => wideCard ? `clamp(${minPx}px, min(${cq * 0.9}cqw, ${cq * 1.6}cqh), ${maxPx}px)` : scaleCard ? `clamp(${minPx}px, ${cq}cqw, ${maxPx}px)` : `${minPx}px`
   const renderCell = (pos: FarmPosition) => {
     const p = bySlot.get(pos.end); const lv = p ? live[p.id] : undefined; const st = farmCellState(p, lv); const meta = FARM_STATE_META[st]
     const dim = (fState !== 'todos' && st !== fState) || !matchesText(p, lv, pos)
@@ -4529,7 +4530,7 @@ function FarmMapPanel() {
           <>
             {(() => {
               const img = (
-                <div className="shrink-0 overflow-hidden rounded-md" style={scaleCard ? { width: 'min(36cqw, 68cqh)', aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' } : { height: 48, aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
+                <div className="shrink-0 overflow-hidden rounded-md" style={wideCard ? { width: 'min(36cqw, 68cqh)', aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' } : scaleCard ? { height: 'min(42cqh, 100%)', aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' } : { height: 48, aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
                   {printing && jp?.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
@@ -4559,15 +4560,15 @@ function FarmMapPanel() {
                   {st === 'error' && lv?.open_failure && <button type="button" onClick={e => { e.stopPropagation(); void ackFail(p.id, lv.open_failure!.id, false) }} title="Fecha o alerta no painel (a impressão continua)" className="rounded font-bold" style={{ fontSize: small, padding: '0.2em 0.6em', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.4)' }}>Reconhecer</button>}
                 </div>
               )
-              return scaleCard ? (
-                // cartão que escala (R01/R02, lados): imagem à esquerda na altura toda, coluna de dados à direita
+              return wideCard ? (
+                // cartão largo (visão de um lado): imagem à esquerda na altura toda, coluna de dados à direita
                 <div className="flex min-h-0 flex-1 items-center" style={{ gap: 'clamp(6px, 3cqw, 18px)' }}>
                   {img}
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-between" style={{ height: '100%', gap: 'clamp(3px, 1.5cqh, 10px)' }}>{nome}{rodape}</div>
                 </div>
               ) : (
                 <>
-                  <div className="flex min-h-0 flex-1 items-center" style={{ gap: 8 }}>{img}<div className="min-w-0 flex-1">{nome}</div></div>
+                  <div className="flex min-h-0 flex-1 items-center" style={{ gap: scaleCard ? 'clamp(6px, 2.5cqw, 16px)' : 8 }}>{img}<div className="min-w-0 flex-1">{nome}</div></div>
                   {rodape}
                 </>
               )
@@ -4593,12 +4594,13 @@ function FarmMapPanel() {
     )
   }
 
+  const anyRackHasVisible = racks.some(r => FARM_POSITIONS.some(x => x.rack === r && sides.includes(x.corr) && bySlot.has(x.end)))
   const racksView = (
-    <div className={scaleCard ? 'grid min-h-0 flex-1 gap-2' : 'space-y-3'} style={scaleCard ? { gridTemplateRows: racks.map(r => FARM_POSITIONS.some(x => x.rack === r && sides.includes(x.corr) && bySlot.has(x.end)) ? 'minmax(0, 1fr)' : 'auto').join(' ') } : { zoom: legacyAll ? fit : 1 }}>
+    <div className={scaleCard ? 'grid min-h-0 flex-1 gap-2' : 'space-y-3'} style={scaleCard ? { gridTemplateRows: racks.map(r => (FARM_POSITIONS.some(x => x.rack === r && sides.includes(x.corr) && bySlot.has(x.end)) || !anyRackHasVisible) ? 'minmax(0, 1fr)' : 'auto').join(' ') } : { zoom: legacyAll ? fit : 1 }}>
       {racks.map(rack => {
         const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
         const rackHasVisible = FARM_POSITIONS.some(x => x.rack === rack && sides.includes(x.corr) && bySlot.has(x.end))
-        if (scaleCard && !rackHasVisible) return (
+        if (scaleCard && !rackHasVisible && anyRackHasVisible) return (
           <div key={rack} className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-1.5" style={{ background: '#0d0d10', border: '1px dashed #27272a' }}>
             <Layers size={14} style={{ color: '#52525b' }} />
             <span className="text-sm font-extrabold" style={{ color: '#a1a1aa' }}>{FARM_RACK_LABEL[rack]}</span>
