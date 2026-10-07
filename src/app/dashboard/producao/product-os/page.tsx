@@ -4391,6 +4391,21 @@ function FarmMapPanel() {
   const [fullscreen, setFullscreen] = useState(false); const [barVisible, setBarVisible] = useState(true); const [clock, setClock] = useState('')
   const [copied, setCopied] = useState(false)
   const barTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Visão "Tudo" em tela cheia: a versão aprovada pelo cliente — cartões quase quadrados e a grade inteira
+  // encolhida por zoom até caber. As outras visões usam a grade por altura + cartão que escala.
+  const fitRef = useRef<HTMLDivElement>(null); const [fit, setFit] = useState(1)
+  const solveFit = useCallback(() => {
+    const wrap = fitRef.current; const inner = wrap?.firstElementChild as HTMLElement | null
+    if (!wrap || !inner) return
+    let z = 1
+    for (let i = 0; i < 8; i++) {
+      inner.style.zoom = String(z)
+      const zn = Math.max(0.35, Math.min(3, (wrap.clientHeight - 8) / Math.max(1, inner.offsetHeight)))
+      if (Math.abs(zn - z) < 0.01) { z = zn; break }
+      z = zn
+    }
+    setFit(Math.round(z * 100) / 100)
+  }, [])
   const enterFullscreen = useCallback(async () => { setFullscreen(true); try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen() } catch { /* sem gesto do usuário ou navegador sem suporte: fica só o overlay */ } }, [])
   const exitFullscreen = useCallback(async () => { setFullscreen(false); try { if (document.fullscreenElement) await document.exitFullscreen() } catch { /* */ } }, [])
   useEffect(() => {
@@ -4458,6 +4473,14 @@ function FarmMapPanel() {
   const levels = [...FARM_LEVELS].reverse().filter(l => fLevel === 'todos' || l === fLevel)   // N3 em cima, como na estante
   const visible = FARM_POSITIONS.filter(x => racks.includes(x.rack) && sides.includes(x.corr) && levels.includes(x.nivel))
   const toggleState = (st: FarmCellState) => setFState(v => v === st ? 'todos' : st)
+  const legacyAll = fullscreen && racks.length === 2 && sides.length === 2   // "Tudo" na tela cheia
+  const scaleCard = fullscreen && !legacyAll                                     // cartão que escala (R01/R02, lados, níveis)
+  useEffect(() => {
+    if (!legacyAll) return
+    const t0 = setTimeout(solveFit, 50); const t1 = setTimeout(solveFit, 600)
+    const it = setInterval(solveFit, 5000); window.addEventListener('resize', solveFit)
+    return () => { clearTimeout(t0); clearTimeout(t1); clearInterval(it); window.removeEventListener('resize', solveFit) }
+  }, [legacyAll, fLevel, fState, printers.length, solveFit])
   const viewKey = `${fRack === 'todas' ? '' : fRack}${fSide === 'todos' ? '' : '/' + fSide}` || 'tudo'
   const setView = (v: string) => { if (v === 'tudo') { setFRack('todas'); setFSide('todos'); return } const [r, l] = v.split('/'); setFRack(r === '' || !r ? 'todas' : r as FarmRack); setFSide(l ? l as FarmSide : 'todos') }
   const viewLabel = [fRack === 'todas' ? 'as 2 estantes' : `estante ${fRack}`, fSide === 'todos' ? 'os 2 lados' : `lado ${fSide}`, fLevel === 'todos' ? 'todos os níveis' : `nível N${fLevel}`].join(' · ')
@@ -4477,7 +4500,7 @@ function FarmMapPanel() {
   // Cartão da posição (padrão do mockup do cliente). O cartão é um CONTAINER: imagem, fontes e espaços
   // são frações do tamanho dele (cqw/cqh), então o mesmo cartão serve pequeno na visão "Tudo" e grande
   // na visão de um lado só. Na tela cheia ele preenche a célula da grade; fora dela é quase quadrado.
-  const fs = (minPx: number, cq: number, maxPx: number) => `clamp(${minPx}px, ${cq}cqw, ${maxPx}px)`
+  const fs = (minPx: number, cq: number, maxPx: number) => scaleCard ? `clamp(${minPx}px, ${cq}cqw, ${maxPx}px)` : `${minPx}px`
   const renderCell = (pos: FarmPosition) => {
     const p = bySlot.get(pos.end); const lv = p ? live[p.id] : undefined; const st = farmCellState(p, lv); const meta = FARM_STATE_META[st]
     const dim = (fState !== 'todos' && st !== fState) || !matchesText(p, lv, pos)
@@ -4495,7 +4518,7 @@ function FarmMapPanel() {
     return (
       <div key={pos.end} onClick={() => { if (p) setOpenPrinter(p); else setAssigning(isAssigning ? null : pos.end) }}
         className="flex h-full min-h-0 min-w-0 cursor-pointer flex-col overflow-hidden rounded-lg transition-all hover:border-cyan-700"
-        style={{ containerType: 'size', boxSizing: 'border-box', padding: 'clamp(6px, 2.2cqw, 14px)', gap: 'clamp(3px, 1.4cqh, 10px)', background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1, ...(fullscreen ? {} : { aspectRatio: '1 / 1.05', minHeight: 150 }) }}>
+        style={{ ...(scaleCard ? { containerType: 'size' as const, padding: 'clamp(6px, 2.2cqw, 14px)', gap: 'clamp(3px, 1.4cqh, 10px)' } : { padding: 8, gap: 6, aspectRatio: '1 / 1.05', minHeight: 148 }), boxSizing: 'border-box', background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1 }}>
         {/* cabeçalho: código da posição (1 linha) + estado + sinais */}
         <div className="flex shrink-0 items-center gap-1">
           <span className="font-mono font-extrabold" style={{ fontSize: fs(12, 4, 22), whiteSpace: 'nowrap', color: p ? '#fafafa' : '#71717a' }}>{pos.end}</span>
@@ -4505,8 +4528,8 @@ function FarmMapPanel() {
         {p ? (
           <>
             {/* centro: imagem (≈42% da altura) + nome / camada */}
-            <div className="flex min-h-0 flex-1 items-center" style={{ gap: 'clamp(6px, 2.5cqw, 16px)' }}>
-              <div className="shrink-0 overflow-hidden rounded-md" style={{ height: 'min(42cqh, 100%)', aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
+            <div className="flex min-h-0 flex-1 items-center" style={{ gap: scaleCard ? 'clamp(6px, 2.5cqw, 16px)' : 8 }}>
+              <div className="shrink-0 overflow-hidden rounded-md" style={{ height: scaleCard ? 'min(42cqh, 100%)' : 48, aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
                 {printing && jp?.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
@@ -4518,9 +4541,9 @@ function FarmMapPanel() {
               </div>
             </div>
             {/* rodapé: barra + % · decorrido | restante · ETA · material | cor · bico | mesa */}
-            <div className="shrink-0" style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(2px, 1cqh, 8px)' }}>
+            <div className="shrink-0" style={{ display: 'flex', flexDirection: 'column', gap: scaleCard ? 'clamp(2px, 1cqh, 8px)' : 3 }}>
               <div className="flex items-center" style={{ gap: '0.5em', fontSize: mid }}>
-                <div className="flex-1 overflow-hidden rounded-full" style={{ height: 'clamp(5px, 2.2cqh, 12px)', background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${printing ? (lv?.progress_pct ?? 0) : 0}%`, background: meta.color }} /></div>
+                <div className="flex-1 overflow-hidden rounded-full" style={{ height: scaleCard ? 'clamp(5px, 2.2cqh, 12px)' : 6, background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${printing ? (lv?.progress_pct ?? 0) : 0}%`, background: meta.color }} /></div>
                 <span className="font-extrabold" style={{ minWidth: '2.6em', textAlign: 'right', color: printing ? meta.color : '#3f3f46' }}>{printing ? `${Math.round(lv?.progress_pct ?? 0)}%` : '—'}</span>
               </div>
               <div className="flex items-center justify-between" style={{ fontSize: small, color: printing ? '#a1a1aa' : '#3f3f46' }}>
@@ -4555,7 +4578,7 @@ function FarmMapPanel() {
   }
 
   const racksView = (
-    <div className={fullscreen ? 'grid min-h-0 flex-1 gap-2' : 'space-y-3'} style={fullscreen ? { gridTemplateRows: `repeat(${racks.length}, minmax(0, 1fr))` } : undefined}>
+    <div className={scaleCard ? 'grid min-h-0 flex-1 gap-2' : 'space-y-3'} style={scaleCard ? { gridTemplateRows: `repeat(${racks.length}, minmax(0, 1fr))` } : { zoom: legacyAll ? fit : 1 }}>
       {racks.map(rack => {
         const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
         const rackPrinting = rackPrinters.filter(x => farmCellState(x, live[x.id]) === 'printing').length
@@ -4580,7 +4603,7 @@ function FarmMapPanel() {
               ))}
             </div>
             {/* prateleiras: uma linha por nível; na tela cheia as linhas dividem a altura em partes iguais */}
-            <div className="grid min-h-0 flex-1 gap-2" style={{ gridTemplateColumns: cols, gridTemplateRows: fullscreen ? `repeat(${levels.length}, minmax(0, 1fr))` : undefined }}>
+            <div className="grid min-h-0 flex-1 gap-2" style={{ gridTemplateColumns: cols, gridTemplateRows: scaleCard ? `repeat(${levels.length}, minmax(0, 1fr))` : undefined }}>
               {levels.map(nivel => (
                 <Fragment key={nivel}>
                   <div className="flex w-7 items-center justify-center rounded" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><span className="text-[10px] font-extrabold" style={{ color: '#a5f3fc' }}>N{nivel}</span></div>
@@ -4649,7 +4672,7 @@ function FarmMapPanel() {
         <button type="button" onClick={() => void exitFullscreen()} className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Minimize2 size={12} /> Sair da tela cheia (Esc)</button>
       </div>
       {err && <div className="mx-5 mt-2 rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
-      <div className="flex min-h-0 flex-1 flex-col p-3">{racksView}</div>
+      <div ref={fitRef} className={legacyAll ? 'flex-1 overflow-auto p-3' : 'flex min-h-0 flex-1 flex-col p-3'}>{racksView}</div>
       {openPrinter && <PrinterDetailDrawer printer={openPrinter} onClose={() => setOpenPrinter(null)} onChanged={() => void loadPrinters()} />}
     </div>
   )
