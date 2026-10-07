@@ -4369,8 +4369,6 @@ const FARM_STATE_META: Record<FarmCellState, { label: string; color: string }> =
 }
 function fmtMin(m: number | null | undefined): string { if (m == null) return '—'; const r = Math.round(m); return r >= 60 ? `${Math.floor(r / 60)}h${String(r % 60).padStart(2, '0')}` : `${r}min` }
 
-function Bv({ children }: { children: React.ReactNode }) { return <b className="font-bold" style={{ color: '#e4e4e7' }}>{children}</b> }
-
 function FilterSeg({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: Array<[string, string]> }) {
   return (
     <div className="flex items-center gap-1">
@@ -4388,10 +4386,6 @@ function FarmMapPanel() {
   const [fRack, setFRack] = useState<'todas' | FarmRack>('todas'); const [fLevel, setFLevel] = useState<'todos' | FarmLevel>('todos'); const [fSide, setFSide] = useState<'todos' | FarmSide>('todos')
   const [fState, setFState] = useState<'todos' | FarmCellState>('todos'); const [q, setQ] = useState('')
   const [assigning, setAssigning] = useState<string | null>(null)   // endereço da posição livre em atribuição
-  // estante / lado / prateleira SEM máquina viram uma faixa fina (senão a R01 vazia come metade da tela);
-  // o operador abre quando for posicionar uma impressora
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const toggleExpanded = (k: string) => setExpanded(prev => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const [busy, setBusy] = useState(false); const [tickAt, setTickAt] = useState<Date | null>(null)
   // tela cheia (monitor da produção): overlay cobrindo a tela + fullscreen do navegador quando ele deixa
   const [fullscreen, setFullscreen] = useState(false); const [barVisible, setBarVisible] = useState(true); const [clock, setClock] = useState('')
@@ -4506,74 +4500,78 @@ function FarmMapPanel() {
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
 
+  const PILL: Record<FarmCellState, string> = { printing: 'Trabalhando', paused: 'Pausada', error: 'Alerta', idle: 'Ociosa', offline: 'Offline', livre: 'Livre' }
+  // Cartão da posição — padrão do mockup do cliente: posição + status · imagem pequena + nome ·
+  // barra com % · tempos · material/cor e temperaturas. Mesmo tamanho pra todas as posições.
   const renderCell = (pos: FarmPosition) => {
     const p = bySlot.get(pos.end); const lv = p ? live[p.id] : undefined; const st = farmCellState(p, lv); const meta = FARM_STATE_META[st]
     const dim = (fState !== 'todos' && st !== fState) || !matchesText(p, lv, pos)
     const co = lv?.current_order; const jp = lv?.job_product; const printing = st === 'printing' || st === 'paused'; const isAssigning = assigning === pos.end
     const produto = jp?.name ?? co?.product_name ?? null
+    const tray = (lv?.ams ?? []).find(a => a.material)
+    const material = co?.material ?? tray?.material ?? null
+    const cor = co?.color_name ?? null
+    const corHex = tray?.color && /^[0-9a-f]{6}/i.test(String(tray.color)) ? `#${String(tray.color).slice(0, 6)}` : null
+    const eta = lv?.remaining_minutes != null ? new Date(Date.now() + lv.remaining_minutes * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null
+    const elapsed = co?.started_at ? Math.max(0, Math.round((Date.now() - new Date(co.started_at).getTime()) / 60000)) : null
+    const titulo = !p ? '' : printing ? (produto ?? lv?.job_name ?? '—') : st === 'idle' ? 'Sem impressão' : st === 'offline' ? 'Sem sinal' : (lv?.open_failure ? `Falha: ${lv.open_failure.reason ?? ''}` : (lv?.error_text ?? `Erro ${lv?.error_code ?? ''}`))
+    const subtitulo = !p ? '' : printing ? (co?.part_name ?? (jp && !jp.product_dev_id ? 'produto não identificado' : (lv?.layer_total ? `camada ${lv.layer_current ?? 0}/${lv.layer_total}` : ''))) : st === 'idle' ? 'aguardando tarefa' : st === 'offline' ? (lv?.bound ? 'agente sem contato' : 'sem nº de série') : ''
     return (
       <div key={pos.end} onClick={() => { if (p) setOpenPrinter(p); else setAssigning(isAssigning ? null : pos.end) }}
-        className="cursor-pointer rounded-lg p-2 transition-all hover:border-cyan-700"
-        style={{ background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1, minHeight: 92 }}>
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.color, boxShadow: st === 'printing' ? `0 0 6px ${meta.color}` : 'none' }} />
-          <span className="font-mono text-[10px] font-bold" style={{ color: '#a5f3fc' }}>{pos.end}</span>
-          <span className="ml-auto text-[9px] font-bold uppercase tracking-wide" style={{ color: meta.color }}>{meta.label}</span>
+        className="flex cursor-pointer flex-col rounded-lg p-2 transition-all hover:border-cyan-700"
+        style={{ background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1, minHeight: 148 }}>
+        {/* linha 1: posição + status + sinais */}
+        <div className="flex items-center gap-1">
+          <span className="font-mono text-[11px] font-extrabold" style={{ color: p ? '#fafafa' : '#71717a' }}>{pos.end}</span>
+          <span className="rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ background: `${meta.color}22`, color: meta.color, border: `1px solid ${meta.color}55` }}>{PILL[st]}</span>
+          {p && <span className="ml-auto flex items-center gap-1">{lv?.camera_url && <Eye size={10} style={{ color: '#71717a' }} />}<Wifi size={10} style={{ color: lv?.online ? '#4ade80' : '#3f3f46' }} /></span>}
         </div>
         {p ? (
           <>
-            <p className="mt-1 truncate text-[11px] font-bold text-white" title={p.name}>{p.name}{p.has_ams ? <span className="ml-1 text-[8px] font-semibold" style={{ color: '#71717a' }}>AMS</span> : null}</p>
-            {printing && (() => {
-              const eta = lv?.remaining_minutes != null ? new Date(Date.now() + lv.remaining_minutes * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'
-              const mats = [...new Set((lv?.ams ?? []).map(a => a.material).filter(Boolean))]
-              return (
-                <div className="mt-1.5 flex items-start gap-1.5">
-                  {/* render pequeno (1/4 da célula): só pra reconhecer o produto */}
-                  <div className="relative w-1/4 shrink-0 overflow-hidden rounded-md" style={{ aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
-                    {jp?.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
-                    ) : <div className="flex h-full w-full items-center justify-center text-center text-[8px]" style={{ color: '#52525b' }}>{jp && !jp.product_dev_id ? 'produto?' : 'sem render'}</div>}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-[11px] font-extrabold leading-tight text-white" title={produto ?? lv?.job_name ?? ''}>{produto ?? lv?.job_name ?? '—'}</p>
-                    {produto && co?.part_name && <p className="truncate text-[9px]" style={{ color: '#a1a1aa' }}>{co.part_name}</p>}
-                    {jp && !jp.product_dev_id && <p className="text-[9px]" style={{ color: '#fcd34d' }}>produto não identificado</p>}
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${lv?.progress_pct ?? 0}%`, background: meta.color }} /></div>
-                      <span className="text-[11px] font-extrabold" style={{ color: meta.color }}>{Math.round(lv?.progress_pct ?? 0)}%</span>
-                    </div>
-                    <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px] leading-tight" style={{ color: '#a1a1aa' }}>
-                      <span>Camada <Bv>{lv?.layer_total ? `${lv.layer_current ?? 0}/${lv.layer_total}` : '—'}</Bv></span>
-                      <span>Resta <Bv>{fmtMin(lv?.remaining_minutes)}</Bv></span>
-                      <span>Termina <Bv>{eta}</Bv></span>
-                      <span>Bico <Bv>{lv?.nozzle_temp != null ? `${Math.round(lv.nozzle_temp)}°` : '—'}</Bv> · Mesa <Bv>{lv?.bed_temp != null ? `${Math.round(lv.bed_temp)}°` : '—'}</Bv></span>
-                      {co && <span>OP <Bv>#{co.order_number}</Bv> · {co.quantity} un{co.color_name ? ` · ${co.color_name}` : ''}</span>}
-                      {mats.length > 0 && <span>Material <Bv>{mats.join('/')}</Bv></span>}
-                      {st === 'paused' && <span style={{ color: '#fcd34d' }}>⏸ pausada</span>}
-                    </div>
-                    <p className="mt-0.5 truncate text-[8px]" style={{ color: '#52525b' }} title={lv?.job_name ?? ''}>{lv?.job_name ?? ''}</p>
-                  </div>
-                </div>
-              )
-            })()}
-            {st === 'idle' && <p className="mt-0.5 text-[9px]" style={{ color: '#71717a' }}>{lv?.nozzle_temp != null ? `bico ${Math.round(lv.nozzle_temp)}° · ` : ''}pronta pra próxima ordem</p>}
-            {st === 'error' && (
-              <div className="mt-0.5 flex items-center gap-1.5">
-                <p className="min-w-0 flex-1 truncate text-[9px]" style={{ color: '#f87171' }} title={lv?.open_failure?.reason ?? lv?.error_text ?? ''}>{lv?.open_failure ? `falha registrada: ${lv.open_failure.reason ?? ''}` : (lv?.error_text ?? `erro ${lv?.error_code ?? ''} na máquina`)}</p>
-                {lv?.open_failure && p && <button type="button" onClick={e => { e.stopPropagation(); void ackFail(p.id, lv.open_failure!.id, false) }} title="Fecha o alerta no painel (a impressão continua)" className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.4)' }}>Reconhecer</button>}
+            {/* linha 2: imagem pequena + nome */}
+            <div className="mt-1.5 flex items-center gap-2">
+              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md" style={{ background: '#0a0a0e', border: '1px solid #1f1f24' }}>
+                {printing && jp?.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                ) : <div className="flex h-full w-full items-center justify-center"><PrinterIcon size={16} style={{ color: '#3f3f46' }} /></div>}
               </div>
-            )}
-            {st === 'offline' && <p className="mt-0.5 text-[9px]" style={{ color: '#52525b' }}>{lv?.bound ? 'sem sinal do agente' : 'sem nº de série vinculado'}</p>}
+              <div className="min-w-0 flex-1">
+                <p className="line-clamp-2 text-[11px] font-bold leading-tight" style={{ color: st === 'error' ? '#fca5a5' : '#fafafa' }} title={titulo}>{titulo}</p>
+                <p className="truncate text-[9px]" style={{ color: '#71717a' }} title={subtitulo}>{subtitulo}</p>
+              </div>
+            </div>
+            {/* linha 3: progresso */}
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${printing ? (lv?.progress_pct ?? 0) : 0}%`, background: meta.color }} /></div>
+              <span className="w-8 text-right text-[10px] font-bold" style={{ color: printing ? meta.color : '#3f3f46' }}>{printing ? `${Math.round(lv?.progress_pct ?? 0)}%` : '—'}</span>
+            </div>
+            {/* linha 4: decorrido | restante · término */}
+            <div className="mt-1 flex items-center justify-between text-[9px]" style={{ color: printing ? '#a1a1aa' : '#3f3f46' }}>
+              <span title="decorrido">{printing && elapsed != null ? fmtMin(elapsed) : '- | -'}</span>
+              <span title="restante · término">{printing ? `${fmtMin(lv?.remaining_minutes)}${eta ? ` · ${eta}` : ''}` : ''}</span>
+            </div>
+            {/* linha 5: material | cor · bico° | mesa° */}
+            <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-[9px]" style={{ color: p ? '#71717a' : '#3f3f46' }}>
+              <span className="flex min-w-0 items-center gap-1 truncate">{corHex && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: corHex, border: '1px solid #3f3f46' }} />}<span className="truncate">{material ?? '—'}{cor ? ` | ${cor}` : ''}</span></span>
+              <span className="shrink-0">{lv?.nozzle_temp != null ? `${Math.round(lv.nozzle_temp)}°` : '-'} | {lv?.bed_temp != null ? `${Math.round(lv.bed_temp)}°` : '-'}</span>
+            </div>
+            {st === 'error' && lv?.open_failure && <button type="button" onClick={e => { e.stopPropagation(); void ackFail(p.id, lv.open_failure!.id, false) }} title="Fecha o alerta no painel (a impressão continua)" className="mt-1 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.4)' }}>Reconhecer</button>}
           </>
         ) : (
-          <div className="mt-1" onClick={e => { if (isAssigning) e.stopPropagation() }}>
+          <div className="mt-1.5 flex flex-1 flex-col items-center justify-center text-center" onClick={e => { if (isAssigning) e.stopPropagation() }}>
             {isAssigning ? (
               <select autoFocus disabled={busy} defaultValue="" onChange={e => { if (e.target.value) void assign(e.target.value, pos.end) }} className="w-full rounded px-1.5 py-1 text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }}>
                 <option value="">Qual impressora vai aqui?</option>
                 {printers.filter(x => x.status !== 'aposentada').map(x => <option key={x.id} value={x.id}>{x.name}{x.farm_slot ? ` (hoje em ${x.farm_slot})` : ''}</option>)}
               </select>
-            ) : <p className="text-[10px]" style={{ color: '#3f3f46' }}>+ posicionar máquina</p>}
+            ) : (
+              <>
+                <PrinterIcon size={18} style={{ color: '#27272a' }} />
+                <p className="mt-1 text-[9px]" style={{ color: '#3f3f46' }}>posição livre</p>
+                <p className="text-[8px]" style={{ color: '#3f3f46' }}>+ posicionar máquina</p>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -4581,75 +4579,46 @@ function FarmMapPanel() {
   }
 
   const racksView = (
-    <div className="space-y-3" style={{ zoom }}>
-      {/* estantes */}
-      {racks.map(rack => {
-        const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
-        const rackPrinting = rackPrinters.filter(x => farmCellState(x, live[x.id]) === 'printing').length
-        const rackUtil = rackPrinters.length ? Math.round((rackPrinting / rackPrinters.length) * 100) : 0
-        if (rackPrinters.length === 0 && !expanded.has(rack)) return (
-          <div key={rack} className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-2" style={{ background: '#0d0d10', border: '1px dashed #27272a' }}>
-            <Layers size={14} style={{ color: '#52525b' }} />
-            <span className="text-sm font-extrabold" style={{ color: '#a1a1aa' }}>{FARM_RACK_LABEL[rack]}</span>
-            <span className="text-[10px]" style={{ color: '#52525b' }}>24 posições livres · nenhuma máquina posicionada</span>
-            <button type="button" onClick={() => toggleExpanded(rack)} className="ml-auto rounded px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>mostrar posições</button>
-          </div>
-        )
-        return (
-          <div key={rack} className="rounded-xl p-3" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Layers size={14} className="text-cyan-400" />
-              <span className="text-sm font-extrabold text-white">{FARM_RACK_LABEL[rack]}</span>
-              <span className="text-[10px]" style={{ color: '#71717a' }}>{rackPrinters.length}/24 posições ocupadas · {rackPrinting} imprimindo</span>
-              <div className="ml-auto flex items-center gap-1.5 text-[10px]" style={{ color: '#71717a' }}>utilização<div className="h-1.5 w-28 overflow-hidden rounded-full" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><div className="h-full" style={{ width: `${rackUtil}%`, background: '#00E5FF' }} /></div><span className="font-bold" style={{ color: '#a5f3fc' }}>{rackUtil}%</span></div>
-              {rackPrinters.length === 0 && <button type="button" onClick={() => toggleExpanded(rack)} className="rounded px-2 py-0.5 text-[10px]" style={{ color: '#71717a' }}>recolher</button>}
+    <div style={{ zoom }}>
+      <div className={`grid gap-3 ${racks.length === 2 ? 'xl:grid-cols-2' : ''}`}>
+        {racks.map(rack => {
+          const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
+          const rackPrinting = rackPrinters.filter(x => farmCellState(x, live[x.id]) === 'printing').length
+          const rackUtil = rackPrinters.length ? Math.round((rackPrinting / rackPrinters.length) * 100) : 0
+          return (
+            <div key={rack} className="rounded-xl p-3" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Layers size={14} className="text-cyan-400" />
+                <span className="text-sm font-extrabold text-white">{FARM_RACK_LABEL[rack]}</span>
+                <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.08)', color: '#a5f3fc' }}>{rackPrinters.length} impressora{rackPrinters.length === 1 ? '' : 's'}</span>
+                <div className="ml-auto flex items-center gap-1.5 text-[10px]" style={{ color: '#71717a' }}>Utilização: <b style={{ color: '#fafafa' }}>{rackUtil}%</b><div className="h-1.5 w-24 overflow-hidden rounded-full" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><div className="h-full" style={{ width: `${rackUtil}%`, background: '#00E5FF' }} /></div></div>
+              </div>
+              <div className="space-y-2">
+                {sides.map(side => (
+                  <div key={side} className="rounded-lg p-2" style={{ background: '#111114', border: '1px solid #1f1f24' }}>
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px]">
+                      <span className="rounded px-1.5 py-0.5 font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF' }}>LADO {side}</span>
+                      <span style={{ color: '#71717a' }}>corredor {side === 'A' ? 'da esquerda' : 'da direita'} · visto do corredor: <b style={{ color: '#a1a1aa' }}>{side === 'A' ? '04 ← 01' : '01 → 04'}</b></span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {levels.map(nivel => {
+                        let cells = FARM_POSITIONS.filter(x => x.rack === rack && x.corr === side && x.nivel === nivel)
+                        if (side === 'A') cells = [...cells].reverse()
+                        return (
+                          <div key={nivel} className="flex items-stretch gap-1.5">
+                            <div className="flex w-7 shrink-0 items-center justify-center rounded" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><span className="text-[10px] font-extrabold" style={{ color: '#a5f3fc' }}>N{nivel}</span></div>
+                            <div className="grid flex-1 grid-cols-4 gap-1.5">{cells.map(renderCell)}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className={`grid gap-3 ${sides.length === 2 ? 'xl:grid-cols-2' : ''}`}>
-              {sides.map(side => {
-                const sideKey = `${rack}-${side}`
-                const sideHas = FARM_POSITIONS.some(x => x.rack === rack && x.corr === side && bySlot.has(x.end))
-                if (!sideHas && !expanded.has(sideKey)) return (
-                  <div key={side} className="flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: '#111114', border: '1px dashed #1f1f24' }}>
-                    <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.06)', color: '#71717a' }}>LADO {side}</span>
-                    <span className="text-[10px]" style={{ color: '#52525b' }}>12 posições livres</span>
-                    <button type="button" onClick={() => toggleExpanded(sideKey)} className="ml-auto rounded px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a5f3fc' }}>mostrar</button>
-                  </div>
-                )
-                return (
-                <div key={side} className="rounded-lg p-2" style={{ background: '#111114', border: '1px solid #1f1f24' }}>
-                  <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px]">
-                    <span className="rounded px-1.5 py-0.5 font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF' }}>LADO {side}</span>
-                    <span style={{ color: '#71717a' }}>corredor {side === 'A' ? 'da esquerda' : 'da direita'} · como se vê do corredor: <b style={{ color: '#a1a1aa' }}>{side === 'A' ? '04 ← 01' : '01 → 04'}</b> (01 = lado da porta)</span>
-                    {!sideHas && <button type="button" onClick={() => toggleExpanded(sideKey)} className="ml-auto rounded px-2 py-0.5 text-[10px]" style={{ color: '#71717a' }}>recolher</button>}
-                  </div>
-                  <div className="space-y-1.5">
-                    {levels.map(nivel => {
-                      let cells = FARM_POSITIONS.filter(x => x.rack === rack && x.corr === side && x.nivel === nivel)
-                      if (side === 'A') cells = [...cells].reverse()
-                      const rowKey = `${rack}-${side}-N${nivel}`
-                      if (!cells.some(c => bySlot.has(c.end)) && !expanded.has(rowKey)) return (
-                        <div key={nivel} className="flex items-center gap-1.5 rounded px-1.5 py-1" style={{ background: '#0c0c10', border: '1px dashed #1f1f24' }}>
-                          <span className="w-10 text-center text-[11px] font-extrabold" style={{ color: '#52525b' }}>N{nivel}</span>
-                          <span className="text-[10px]" style={{ color: '#52525b' }}>4 posições livres</span>
-                          <button type="button" onClick={() => toggleExpanded(rowKey)} className="ml-auto rounded px-2 py-0.5 text-[10px] font-semibold" style={{ color: '#a5f3fc' }}>mostrar</button>
-                        </div>
-                      )
-                      return (
-                        <div key={nivel} className="flex items-stretch gap-1.5">
-                          <div className="flex w-10 shrink-0 flex-col items-center justify-center rounded" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><span className="text-[11px] font-extrabold" style={{ color: '#a5f3fc' }}>N{nivel}</span><span className="text-[8px]" style={{ color: '#52525b' }}>{FARM_LEVEL_USE[nivel]}</span></div>
-                          <div className="grid flex-1 grid-cols-2 gap-1.5 md:grid-cols-4">{cells.map(renderCell)}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })}
-
+          )
+        })}
+      </div>
       {/* impressoras cadastradas que ainda não têm endereço */}
       {unplaced.length > 0 && (
         <div className="rounded-xl p-3" style={{ background: '#111114', border: '1px solid rgba(252,211,77,0.35)' }}>
