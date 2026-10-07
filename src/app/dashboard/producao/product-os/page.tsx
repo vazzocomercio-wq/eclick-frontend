@@ -4397,11 +4397,6 @@ function FarmMapPanel() {
   const solveFit = useCallback(() => {
     const wrap = fitRef.current; const inner = wrap?.firstElementChild as HTMLElement | null
     if (!wrap || !inner) return
-    // fora da tela cheia o quadro ocupa o que sobra da janela abaixo dele (sem rolagem na página)
-    if (!document.fullscreenElement && !wrap.classList.contains('flex-1')) {
-      const top = wrap.getBoundingClientRect().top + window.scrollY
-      wrap.style.height = `${Math.max(240, window.innerHeight - top - 12)}px`
-    }
     let z = 1
     for (let i = 0; i < 8; i++) {
       inner.style.zoom = String(z)
@@ -4449,6 +4444,7 @@ function FarmMapPanel() {
   const pokeBar = useCallback(() => { setBarVisible(v => v || true); if (barTimer.current) clearTimeout(barTimer.current); barTimer.current = setTimeout(() => setBarVisible(false), 6000) }, [])
   useEffect(() => { if (!fullscreen) { setBarVisible(true); return } pokeBar(); return () => { if (barTimer.current) clearTimeout(barTimer.current) } }, [fullscreen, pokeBar])
   useEffect(() => {
+    if (!fullscreen) return   // fora da tela cheia a página rola normalmente (uso no escritório: olhar, mexer, editar)
     const t0 = setTimeout(solveFit, 50); const t1 = setTimeout(solveFit, 600)   // após as imagens entrarem
     const it = setInterval(solveFit, 5000); window.addEventListener('resize', solveFit)
     return () => { clearTimeout(t0); clearTimeout(t1); clearInterval(it); window.removeEventListener('resize', solveFit) }
@@ -4483,8 +4479,8 @@ function FarmMapPanel() {
   const levels = [...FARM_LEVELS].reverse().filter(l => fLevel === 'todos' || l === fLevel)   // N3 em cima, como na estante
   const visible = FARM_POSITIONS.filter(x => racks.includes(x.rack) && sides.includes(x.corr) && levels.includes(x.nivel))
   const toggleState = (st: FarmCellState) => setFState(v => v === st ? 'todos' : st)
-  // o zoom é o que faz a visão escolhida PREENCHER a tela sem rolagem (menos posições → células maiores)
-  const zoom = fit
+  // tela cheia = acompanhamento: a visão escolhida PREENCHE o monitor sem rolagem. Fora dela, tamanho natural.
+  const zoom = fullscreen ? fit : 1
   const viewKey = `${fRack === 'todas' ? '' : fRack}${fSide === 'todos' ? '' : '/' + fSide}` || 'tudo'
   const setView = (v: string) => { if (v === 'tudo') { setFRack('todas'); setFSide('todos'); return } const [r, l] = v.split('/'); setFRack(r === '' || !r ? 'todas' : r as FarmRack); setFSide(l ? l as FarmSide : 'todos') }
   const viewLabel = [fRack === 'todas' ? 'as 2 estantes' : `estante ${fRack}`, fSide === 'todos' ? 'os 2 lados' : `lado ${fSide}`, fLevel === 'todos' ? 'todos os níveis' : `nível N${fLevel}`].join(' · ')
@@ -4519,7 +4515,7 @@ function FarmMapPanel() {
     return (
       <div key={pos.end} onClick={() => { if (p) setOpenPrinter(p); else setAssigning(isAssigning ? null : pos.end) }}
         className="flex cursor-pointer flex-col rounded-lg p-2 transition-all hover:border-cyan-700"
-        style={{ background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1, minHeight: 148 }}>
+        style={{ background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1, aspectRatio: '1 / 1.05', minHeight: 140 }}>
         {/* linha 1: posição + status + sinais */}
         <div className="flex items-center gap-1">
           <span className="font-mono text-[11px] font-extrabold" style={{ color: p ? '#fafafa' : '#71717a' }}>{pos.end}</span>
@@ -4580,7 +4576,7 @@ function FarmMapPanel() {
 
   const racksView = (
     <div style={{ zoom }}>
-      <div className={`grid gap-3 ${racks.length === 2 ? 'xl:grid-cols-2' : ''}`}>
+      <div className="space-y-3">
         {racks.map(rack => {
           const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
           const rackPrinting = rackPrinters.filter(x => farmCellState(x, live[x.id]) === 'printing').length
@@ -4593,7 +4589,7 @@ function FarmMapPanel() {
                 <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(0,229,255,0.08)', color: '#a5f3fc' }}>{rackPrinters.length} impressora{rackPrinters.length === 1 ? '' : 's'}</span>
                 <div className="ml-auto flex items-center gap-1.5 text-[10px]" style={{ color: '#71717a' }}>Utilização: <b style={{ color: '#fafafa' }}>{rackUtil}%</b><div className="h-1.5 w-24 overflow-hidden rounded-full" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><div className="h-full" style={{ width: `${rackUtil}%`, background: '#00E5FF' }} /></div></div>
               </div>
-              <div className="space-y-2">
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${sides.length}, minmax(0, 1fr))` }}>
                 {sides.map(side => (
                   <div key={side} className="rounded-lg p-2" style={{ background: '#111114', border: '1px solid #1f1f24' }}>
                     <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px]">
@@ -4704,7 +4700,7 @@ function FarmMapPanel() {
         <button type="button" onClick={() => void enterFullscreen()} className="flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Maximize2 size={12} /> Tela cheia</button>
       </div>
 
-      <div ref={fitRef} style={{ overflow: 'auto' }}>{racksView}</div>
+      {racksView}
 
       {openPrinter && <PrinterDetailDrawer printer={openPrinter} onClose={() => setOpenPrinter(null)} onChanged={() => void loadPrinters()} />}
     </div>
