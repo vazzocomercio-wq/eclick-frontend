@@ -4500,7 +4500,7 @@ function FarmMapPanel() {
   // Cartão da posição (padrão do mockup do cliente). O cartão é um CONTAINER: imagem, fontes e espaços
   // são frações do tamanho dele (cqw/cqh), então o mesmo cartão serve pequeno na visão "Tudo" e grande
   // na visão de um lado só. Na tela cheia ele preenche a célula da grade; fora dela é quase quadrado.
-  const fs = (minPx: number, cq: number, maxPx: number) => scaleCard ? `clamp(${minPx}px, ${cq * 1.5}cqmin, ${maxPx}px)` : `${minPx}px`
+  const fs = (minPx: number, cq: number, maxPx: number) => scaleCard ? `clamp(${minPx}px, min(${cq * 0.9}cqw, ${cq * 1.6}cqh), ${maxPx}px)` : `${minPx}px`
   const renderCell = (pos: FarmPosition) => {
     const p = bySlot.get(pos.end); const lv = p ? live[p.id] : undefined; const st = farmCellState(p, lv); const meta = FARM_STATE_META[st]
     const dim = (fState !== 'todos' && st !== fState) || !matchesText(p, lv, pos)
@@ -4527,35 +4527,51 @@ function FarmMapPanel() {
         </div>
         {p ? (
           <>
-            {/* centro: imagem (≈42% da altura) + nome / camada */}
-            <div className="flex min-h-0 flex-1 items-center" style={{ gap: scaleCard ? 'clamp(6px, 3.5cqmin, 16px)' : 8 }}>
-              <div className="shrink-0 overflow-hidden rounded-md" style={{ height: scaleCard ? 'min(42cqh, 100%)' : 48, aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
-                {printing && jp?.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
-                ) : <div className="flex h-full w-full items-center justify-center"><PrinterIcon style={{ width: '45%', height: '45%', color: '#3f3f46' }} /></div>}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="line-clamp-2 font-bold leading-tight" style={{ fontSize: fs(13, 5, 28), color: st === 'error' ? '#fca5a5' : '#fafafa' }} title={titulo}>{titulo}</p>
-                <p className="truncate" style={{ fontSize: small, color: '#71717a', marginTop: '0.2em' }} title={subtitulo}>{subtitulo}</p>
-              </div>
-            </div>
-            {/* rodapé: barra + % · decorrido | restante · ETA · material | cor · bico | mesa */}
-            <div className="shrink-0" style={{ display: 'flex', flexDirection: 'column', gap: scaleCard ? 'clamp(2px, 1cqh, 8px)' : 3 }}>
-              <div className="flex items-center" style={{ gap: '0.5em', fontSize: mid }}>
-                <div className="flex-1 overflow-hidden rounded-full" style={{ height: scaleCard ? 'clamp(5px, 2.2cqh, 12px)' : 6, background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${printing ? (lv?.progress_pct ?? 0) : 0}%`, background: meta.color }} /></div>
-                <span className="font-extrabold" style={{ minWidth: '2.6em', textAlign: 'right', color: printing ? meta.color : '#3f3f46' }}>{printing ? `${Math.round(lv?.progress_pct ?? 0)}%` : '—'}</span>
-              </div>
-              <div className="flex items-center justify-between" style={{ fontSize: small, color: printing ? '#a1a1aa' : '#3f3f46' }}>
-                <span title="decorrido">{printing && elapsed != null ? fmtMin(elapsed) : '- | -'}</span>
-                <span title="restante · término">{printing ? `${fmtMin(lv?.remaining_minutes)}${eta ? ` · ${eta}` : ''}` : ''}</span>
-              </div>
-              <div className="flex items-center justify-between" style={{ fontSize: small, gap: '0.5em', color: '#71717a' }}>
-                <span className="flex min-w-0 items-center truncate" style={{ gap: '0.3em' }}>{corHex && <span className="shrink-0 rounded-full" style={{ width: '0.7em', height: '0.7em', background: corHex, border: '1px solid #3f3f46' }} />}<span className="truncate">{material ?? '—'}{cor ? ` | ${cor}` : ''}</span></span>
-                <span className="shrink-0">{lv?.nozzle_temp != null ? `${Math.round(lv.nozzle_temp)}°` : '-'} | {lv?.bed_temp != null ? `${Math.round(lv.bed_temp)}°` : '-'}</span>
-              </div>
-              {st === 'error' && lv?.open_failure && <button type="button" onClick={e => { e.stopPropagation(); void ackFail(p.id, lv.open_failure!.id, false) }} title="Fecha o alerta no painel (a impressão continua)" className="rounded font-bold" style={{ fontSize: small, padding: '0.2em 0.6em', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.4)' }}>Reconhecer</button>}
-            </div>
+            {(() => {
+              const img = (
+                <div className="shrink-0 overflow-hidden rounded-md" style={scaleCard ? { width: 'min(36cqw, 68cqh)', aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' } : { height: 48, aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
+                  {printing && jp?.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                  ) : <div className="flex h-full w-full items-center justify-center"><PrinterIcon style={{ width: '45%', height: '45%', color: '#3f3f46' }} /></div>}
+                </div>
+              )
+              const nome = (
+                <div className="min-w-0">
+                  <p className="line-clamp-2 font-bold leading-tight" style={{ fontSize: fs(13, 5, 28), color: st === 'error' ? '#fca5a5' : '#fafafa' }} title={titulo}>{titulo}</p>
+                  <p className="truncate" style={{ fontSize: small, color: '#71717a', marginTop: '0.2em' }} title={subtitulo}>{subtitulo}</p>
+                </div>
+              )
+              const rodape = (
+                <div className="shrink-0" style={{ display: 'flex', flexDirection: 'column', gap: scaleCard ? 'clamp(2px, 1cqh, 8px)' : 3 }}>
+                  <div className="flex items-center" style={{ gap: '0.5em', fontSize: mid }}>
+                    <div className="flex-1 overflow-hidden rounded-full" style={{ height: scaleCard ? 'clamp(5px, 2.2cqh, 12px)' : 6, background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${printing ? (lv?.progress_pct ?? 0) : 0}%`, background: meta.color }} /></div>
+                    <span className="font-extrabold" style={{ minWidth: '2.6em', textAlign: 'right', color: printing ? meta.color : '#3f3f46' }}>{printing ? `${Math.round(lv?.progress_pct ?? 0)}%` : '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between" style={{ fontSize: small, color: printing ? '#a1a1aa' : '#3f3f46' }}>
+                    <span title="decorrido">{printing && elapsed != null ? fmtMin(elapsed) : '- | -'}</span>
+                    <span title="restante · término">{printing ? `${fmtMin(lv?.remaining_minutes)}${eta ? ` · ${eta}` : ''}` : ''}</span>
+                  </div>
+                  <div className="flex items-center justify-between" style={{ fontSize: small, gap: '0.5em', color: '#71717a' }}>
+                    <span className="flex min-w-0 items-center truncate" style={{ gap: '0.3em' }}>{corHex && <span className="shrink-0 rounded-full" style={{ width: '0.7em', height: '0.7em', background: corHex, border: '1px solid #3f3f46' }} />}<span className="truncate">{material ?? '—'}{cor ? ` | ${cor}` : ''}</span></span>
+                    <span className="shrink-0">{lv?.nozzle_temp != null ? `${Math.round(lv.nozzle_temp)}°` : '-'} | {lv?.bed_temp != null ? `${Math.round(lv.bed_temp)}°` : '-'}</span>
+                  </div>
+                  {st === 'error' && lv?.open_failure && <button type="button" onClick={e => { e.stopPropagation(); void ackFail(p.id, lv.open_failure!.id, false) }} title="Fecha o alerta no painel (a impressão continua)" className="rounded font-bold" style={{ fontSize: small, padding: '0.2em 0.6em', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.4)' }}>Reconhecer</button>}
+                </div>
+              )
+              return scaleCard ? (
+                // cartão que escala (R01/R02, lados): imagem à esquerda na altura toda, coluna de dados à direita
+                <div className="flex min-h-0 flex-1 items-center" style={{ gap: 'clamp(6px, 3cqw, 18px)' }}>
+                  {img}
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-between" style={{ height: '100%', gap: 'clamp(3px, 1.5cqh, 10px)' }}>{nome}{rodape}</div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex min-h-0 flex-1 items-center" style={{ gap: 8 }}>{img}<div className="min-w-0 flex-1">{nome}</div></div>
+                  {rodape}
+                </>
+              )
+            })()}
           </>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center" onClick={e => { if (isAssigning) e.stopPropagation() }}>
