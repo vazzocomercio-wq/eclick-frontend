@@ -4485,6 +4485,11 @@ function FarmMapPanel() {
   const setView = (v: string) => { if (v === 'tudo') { setFRack('todas'); setFSide('todos'); return } const [r, l] = v.split('/'); setFRack(r === '' || !r ? 'todas' : r as FarmRack); setFSide(l ? l as FarmSide : 'todos') }
   const viewLabel = [fRack === 'todas' ? 'as 2 estantes' : `estante ${fRack}`, fSide === 'todos' ? 'os 2 lados' : `lado ${fSide}`, fLevel === 'todos' ? 'todos os níveis' : `nível N${fLevel}`].join(' · ')
 
+  // "Reconhecer" a falha registrada (não fala com a impressora; só fecha o alerta no painel)
+  const ackFail = async (pid: string, id: string, fp: boolean) => {
+    try { await api(`/product-os/farm/failures/${id}/ack`, { method: 'POST', body: JSON.stringify({ false_positive: fp }) }); setLive(o => ({ ...o, [pid]: { ...o[pid], open_failure: null } })) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erro') }
+  }
   const assign = async (printerId: string, slot: string | null) => {
     setBusy(true); setErr('')
     try { await api(`/product-os/printers/${printerId}`, { method: 'PATCH', body: JSON.stringify({ farm_slot: slot }) }); setAssigning(null); await loadPrinters() }
@@ -4535,7 +4540,12 @@ function FarmMapPanel() {
               </div>
             )}
             {st === 'idle' && <p className="mt-0.5 text-[9px]" style={{ color: '#71717a' }}>{lv?.nozzle_temp != null ? `bico ${Math.round(lv.nozzle_temp)}° · ` : ''}pronta pra próxima ordem</p>}
-            {st === 'error' && <p className="mt-0.5 truncate text-[9px]" style={{ color: '#f87171' }} title={lv?.open_failure?.reason ?? lv?.error_text ?? ''}>{lv?.open_failure?.reason ?? lv?.error_text ?? `erro ${lv?.error_code ?? ''}`}</p>}
+            {st === 'error' && (
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <p className="min-w-0 flex-1 truncate text-[9px]" style={{ color: '#f87171' }} title={lv?.open_failure?.reason ?? lv?.error_text ?? ''}>{lv?.open_failure ? `falha registrada: ${lv.open_failure.reason ?? ''}` : (lv?.error_text ?? `erro ${lv?.error_code ?? ''} na máquina`)}</p>
+                {lv?.open_failure && p && <button type="button" onClick={e => { e.stopPropagation(); void ackFail(p.id, lv.open_failure!.id, false) }} title="Fecha o alerta no painel (a impressão continua)" className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.4)' }}>Reconhecer</button>}
+              </div>
+            )}
             {st === 'offline' && <p className="mt-0.5 text-[9px]" style={{ color: '#52525b' }}>{lv?.bound ? 'sem sinal do agente' : 'sem nº de série vinculado'}</p>}
           </>
         ) : (
@@ -5290,6 +5300,21 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
                 {cmdMsg && <p className="mt-1 text-[10px]" style={{ color: '#a5f3fc' }}>{cmdMsg}</p>}
                 {!live.online && <p className="mt-1 text-[10px]" style={{ color: '#52525b' }}>Offline — sem controle. Verifique o agente na fábrica.</p>}
               </div>
+            )}
+
+            {/* falha registrada pelo sistema (histórico): reconhecer fecha o alerta; não toca na impressão */}
+            {live?.open_failure && (
+              <div className="mb-3 rounded-lg p-2.5" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.45)' }}>
+                <p className="text-[11px] font-bold" style={{ color: '#fca5a5' }}>🛑 Falha registrada{live.open_failure.reason ? `: ${live.open_failure.reason}` : ''}</p>
+                <p className="mt-0.5 text-[10px]" style={{ color: '#f87171' }}>{new Date(live.open_failure.detected_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · é o registro do alerta, não o estado atual da máquina{live.state === 'printing' ? ' (ela está imprimindo normalmente)' : ''}.</p>
+                <div className="mt-1.5 flex gap-1.5">
+                  <button type="button" onClick={() => void (async () => { try { await api(`/product-os/farm/failures/${live.open_failure!.id}/ack`, { method: 'POST', body: JSON.stringify({ false_positive: false }) }); await loadLive() } catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') } })()} className="rounded px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#27272a', color: '#e4e4e7' }}>Reconhecer</button>
+                  <button type="button" onClick={() => void (async () => { try { await api(`/product-os/farm/failures/${live.open_failure!.id}/ack`, { method: 'POST', body: JSON.stringify({ false_positive: true }) }); await loadLive() } catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') } })()} className="rounded px-2 py-0.5 text-[10px]" style={{ color: '#a1a1aa' }}>Falso positivo</button>
+                </div>
+              </div>
+            )}
+            {live?.error_code && !live.open_failure && (
+              <p className="mb-3 rounded-lg p-2.5 text-[10px]" style={{ background: 'rgba(252,211,77,0.08)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚠️ A máquina está reportando o código {live.error_code}{live.error_text ? ` (${live.error_text})` : ''}. Esse aviso vem da própria impressora e só some na tela dela{live.state === 'printing' ? '; a impressão segue normal' : ''}.</p>
             )}
 
             {/* o que está sendo impresso: OP → produto, peça, variação, estimativas (a telemetria só sabe o arquivo) */}
