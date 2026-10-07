@@ -202,7 +202,7 @@ interface FarmStatus {
 }
 interface FarmJobProduct {
   product_dev_id: string | null; name: string | null; image_url: string | null
-  image_kind: 'foto' | 'render' | 'referencia' | null; source: 'op' | 'regra' | 'ia' | 'manual' | null; confidence: number | null
+  image_kind: 'render' | 'fatiador' | 'foto' | 'referencia' | null; source: 'op' | 'regra' | 'ia' | 'manual' | null; confidence: number | null
 }
 interface FarmCurrentOrder {
   id: string; order_number: number; status: string; quantity: number
@@ -4510,26 +4510,28 @@ function FarmMapPanel() {
             <p className="mt-1 truncate text-[11px] font-bold text-white" title={p.name}>{p.name}{p.has_ams ? <span className="ml-1 text-[8px] font-semibold" style={{ color: '#71717a' }}>AMS</span> : null}</p>
             {printing && (
               <div className="mt-1.5">
-                {/* imagem GRANDE do produto (foto real > render > referência); sem imagem, o nome em destaque */}
-                <div className="relative w-full overflow-hidden rounded-md" style={{ aspectRatio: '4 / 3', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
-                  {jp?.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center p-2 text-center text-[12px] font-bold leading-tight" style={{ color: produto ? '#d4d4d8' : '#71717a' }}>{produto ?? lv?.job_name ?? 'imprimindo'}</div>
-                  )}
-                  {jp?.image_kind && <span className="absolute left-1 top-1 rounded px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ background: 'rgba(0,0,0,0.65)', color: jp.image_kind === 'foto' ? '#4ade80' : '#a5f3fc' }}>{jp.image_kind}</span>}
-                  {jp && !jp.product_dev_id && <span className="absolute right-1 top-1 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(252,211,77,0.85)', color: '#111' }}>produto?</span>}
-                  <div className="absolute inset-x-0 bottom-0 px-1.5 pb-1 pt-4" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.9))' }}>
-                    <p className="truncate text-[11px] font-extrabold text-white" title={produto ?? lv?.job_name ?? ''}>{produto ?? lv?.job_name ?? '—'}</p>
-                    {produto && co?.part_name && <p className="truncate text-[9px]" style={{ color: '#d4d4d8' }}>{co.part_name}</p>}
+                <div className="flex items-stretch gap-1.5">
+                  {/* render do produto (render > fatiador > foto > referência), em metade da célula */}
+                  <div className="relative w-1/2 shrink-0 overflow-hidden rounded-md" style={{ aspectRatio: '4 / 3', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
+                    {jp?.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={jp.image_url} alt="" className="h-full w-full object-cover" loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center p-1 text-center text-[9px] leading-tight" style={{ color: '#52525b' }}>{jp && !jp.product_dev_id ? 'produto?' : 'sem render'}</div>
+                    )}
+                    {jp?.image_kind && jp.image_kind !== 'render' && <span className="absolute left-1 top-1 rounded px-1 py-0.5 text-[7px] font-bold uppercase tracking-wide" style={{ background: 'rgba(0,0,0,0.65)', color: '#a5f3fc' }}>{jp.image_kind}</span>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-[11px] font-extrabold leading-tight text-white" title={produto ?? lv?.job_name ?? ''}>{produto ?? lv?.job_name ?? '—'}</p>
+                    {produto && co?.part_name && <p className="truncate text-[9px]" style={{ color: '#a1a1aa' }}>{co.part_name}</p>}
+                    {jp && !jp.product_dev_id && <p className="text-[9px]" style={{ color: '#fcd34d' }}>produto não identificado</p>}
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${lv?.progress_pct ?? 0}%`, background: meta.color }} /></div>
+                      <span className="text-[10px] font-bold" style={{ color: meta.color }}>{Math.round(lv?.progress_pct ?? 0)}%</span>
+                    </div>
+                    <p className="mt-0.5 text-[9px] leading-tight" style={{ color: '#71717a' }} title={lv?.job_name ?? ''}>resta {fmtMin(lv?.remaining_minutes)}{lv?.layer_total ? ` · cam. ${lv.layer_current ?? 0}/${lv.layer_total}` : ''}{co ? ` · OP #${co.order_number}` : ''}</p>
                   </div>
                 </div>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${lv?.progress_pct ?? 0}%`, background: meta.color }} /></div>
-                  <span className="text-[10px] font-bold" style={{ color: meta.color }}>{Math.round(lv?.progress_pct ?? 0)}%</span>
-                </div>
-                <p className="mt-0.5 truncate text-[9px]" style={{ color: '#71717a' }} title={lv?.job_name ?? ''}>resta {fmtMin(lv?.remaining_minutes)}{lv?.layer_total ? ` · cam. ${lv.layer_current ?? 0}/${lv.layer_total}` : ''}{co ? ` · OP #${co.order_number}` : ''}</p>
               </div>
             )}
             {st === 'idle' && <p className="mt-0.5 text-[9px]" style={{ color: '#71717a' }}>{lv?.nozzle_temp != null ? `bico ${Math.round(lv.nozzle_temp)}° · ` : ''}pronta pra próxima ordem</p>}
