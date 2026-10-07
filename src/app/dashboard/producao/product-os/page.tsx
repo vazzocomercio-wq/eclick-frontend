@@ -4500,7 +4500,7 @@ function FarmMapPanel() {
   // Cartão da posição (padrão do mockup do cliente). O cartão é um CONTAINER: imagem, fontes e espaços
   // são frações do tamanho dele (cqw/cqh), então o mesmo cartão serve pequeno na visão "Tudo" e grande
   // na visão de um lado só. Na tela cheia ele preenche a célula da grade; fora dela é quase quadrado.
-  const fs = (minPx: number, cq: number, maxPx: number) => scaleCard ? `clamp(${minPx}px, ${cq}cqw, ${maxPx}px)` : `${minPx}px`
+  const fs = (minPx: number, cq: number, maxPx: number) => scaleCard ? `clamp(${minPx}px, ${cq * 1.5}cqmin, ${maxPx}px)` : `${minPx}px`
   const renderCell = (pos: FarmPosition) => {
     const p = bySlot.get(pos.end); const lv = p ? live[p.id] : undefined; const st = farmCellState(p, lv); const meta = FARM_STATE_META[st]
     const dim = (fState !== 'todos' && st !== fState) || !matchesText(p, lv, pos)
@@ -4518,7 +4518,7 @@ function FarmMapPanel() {
     return (
       <div key={pos.end} onClick={() => { if (p) setOpenPrinter(p); else setAssigning(isAssigning ? null : pos.end) }}
         className="flex h-full min-h-0 min-w-0 cursor-pointer flex-col overflow-hidden rounded-lg transition-all hover:border-cyan-700"
-        style={{ ...(scaleCard ? { containerType: 'size' as const, padding: 'clamp(6px, 2.2cqw, 14px)', gap: 'clamp(3px, 1.4cqh, 10px)' } : { padding: 8, gap: 6, aspectRatio: '1 / 1.05', minHeight: 148 }), boxSizing: 'border-box', background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1 }}>
+        style={{ ...(scaleCard ? { containerType: 'size' as const, padding: 'clamp(6px, 3cqmin, 14px)', gap: 'clamp(3px, 2cqmin, 10px)' } : { padding: 8, gap: 6, aspectRatio: '1 / 1.05', minHeight: 148 }), boxSizing: 'border-box', background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1 }}>
         {/* cabeçalho: código da posição (1 linha) + estado + sinais */}
         <div className="flex shrink-0 items-center gap-1">
           <span className="font-mono font-extrabold" style={{ fontSize: fs(12, 4, 22), whiteSpace: 'nowrap', color: p ? '#fafafa' : '#71717a' }}>{pos.end}</span>
@@ -4528,7 +4528,7 @@ function FarmMapPanel() {
         {p ? (
           <>
             {/* centro: imagem (≈42% da altura) + nome / camada */}
-            <div className="flex min-h-0 flex-1 items-center" style={{ gap: scaleCard ? 'clamp(6px, 2.5cqw, 16px)' : 8 }}>
+            <div className="flex min-h-0 flex-1 items-center" style={{ gap: scaleCard ? 'clamp(6px, 3.5cqmin, 16px)' : 8 }}>
               <div className="shrink-0 overflow-hidden rounded-md" style={{ height: scaleCard ? 'min(42cqh, 100%)' : 48, aspectRatio: '1 / 1', background: '#0a0a0e', border: '1px solid #1f1f24' }}>
                 {printing && jp?.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -4578,9 +4578,17 @@ function FarmMapPanel() {
   }
 
   const racksView = (
-    <div className={scaleCard ? 'grid min-h-0 flex-1 gap-2' : 'space-y-3'} style={scaleCard ? { gridTemplateRows: `repeat(${racks.length}, minmax(0, 1fr))` } : { zoom: legacyAll ? fit : 1 }}>
+    <div className={scaleCard ? 'grid min-h-0 flex-1 gap-2' : 'space-y-3'} style={scaleCard ? { gridTemplateRows: racks.map(r => FARM_POSITIONS.some(x => x.rack === r && sides.includes(x.corr) && bySlot.has(x.end)) ? 'minmax(0, 1fr)' : 'auto').join(' ') } : { zoom: legacyAll ? fit : 1 }}>
       {racks.map(rack => {
         const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
+        const rackHasVisible = FARM_POSITIONS.some(x => x.rack === rack && sides.includes(x.corr) && bySlot.has(x.end))
+        if (scaleCard && !rackHasVisible) return (
+          <div key={rack} className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-1.5" style={{ background: '#0d0d10', border: '1px dashed #27272a' }}>
+            <Layers size={14} style={{ color: '#52525b' }} />
+            <span className="text-sm font-extrabold" style={{ color: '#a1a1aa' }}>{FARM_RACK_LABEL[rack]}</span>
+            <span className="text-[10px]" style={{ color: '#52525b' }}>sem máquina posicionada {sides.length === 1 ? `no lado ${sides[0]}` : ''} · {sides.length * 12} posições livres</span>
+          </div>
+        )
         const rackPrinting = rackPrinters.filter(x => farmCellState(x, live[x.id]) === 'printing').length
         const rackUtil = rackPrinters.length ? Math.round((rackPrinting / rackPrinters.length) * 100) : 0
         const cols = `auto repeat(${sides.length}, minmax(0, 1fr))`
