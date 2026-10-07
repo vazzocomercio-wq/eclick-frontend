@@ -4388,6 +4388,10 @@ function FarmMapPanel() {
   const [fRack, setFRack] = useState<'todas' | FarmRack>('todas'); const [fLevel, setFLevel] = useState<'todos' | FarmLevel>('todos'); const [fSide, setFSide] = useState<'todos' | FarmSide>('todos')
   const [fState, setFState] = useState<'todos' | FarmCellState>('todos'); const [q, setQ] = useState('')
   const [assigning, setAssigning] = useState<string | null>(null)   // endereço da posição livre em atribuição
+  // estante / lado / prateleira SEM máquina viram uma faixa fina (senão a R01 vazia come metade da tela);
+  // o operador abre quando for posicionar uma impressora
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const toggleExpanded = (k: string) => setExpanded(prev => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const [busy, setBusy] = useState(false); const [tickAt, setTickAt] = useState<Date | null>(null)
   // tela cheia (monitor da produção): overlay cobrindo a tela + fullscreen do navegador quando ele deixa
   const [fullscreen, setFullscreen] = useState(false); const [barVisible, setBarVisible] = useState(true); const [clock, setClock] = useState('')
@@ -4407,7 +4411,7 @@ function FarmMapPanel() {
     let z = 1
     for (let i = 0; i < 8; i++) {
       inner.style.zoom = String(z)
-      const zn = Math.max(0.35, Math.min(3, (wrap.clientHeight - 8) / Math.max(1, inner.offsetHeight)))
+      const zn = Math.max(0.6, Math.min(3, (wrap.clientHeight - 8) / Math.max(1, inner.offsetHeight)))
       if (Math.abs(zn - z) < 0.01) { z = zn; break }
       z = zn
     }
@@ -4583,6 +4587,14 @@ function FarmMapPanel() {
         const rackPrinters = FARM_POSITIONS.filter(x => x.rack === rack).map(x => bySlot.get(x.end)).filter((x): x is Printer => !!x)
         const rackPrinting = rackPrinters.filter(x => farmCellState(x, live[x.id]) === 'printing').length
         const rackUtil = rackPrinters.length ? Math.round((rackPrinting / rackPrinters.length) * 100) : 0
+        if (rackPrinters.length === 0 && !expanded.has(rack)) return (
+          <div key={rack} className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-2" style={{ background: '#0d0d10', border: '1px dashed #27272a' }}>
+            <Layers size={14} style={{ color: '#52525b' }} />
+            <span className="text-sm font-extrabold" style={{ color: '#a1a1aa' }}>{FARM_RACK_LABEL[rack]}</span>
+            <span className="text-[10px]" style={{ color: '#52525b' }}>24 posições livres · nenhuma máquina posicionada</span>
+            <button type="button" onClick={() => toggleExpanded(rack)} className="ml-auto rounded px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#111114', border: '1px solid #27272a', color: '#a5f3fc' }}>mostrar posições</button>
+          </div>
+        )
         return (
           <div key={rack} className="rounded-xl p-3" style={{ background: '#0d0d10', border: '1px solid #27272a' }}>
             <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -4590,18 +4602,38 @@ function FarmMapPanel() {
               <span className="text-sm font-extrabold text-white">{FARM_RACK_LABEL[rack]}</span>
               <span className="text-[10px]" style={{ color: '#71717a' }}>{rackPrinters.length}/24 posições ocupadas · {rackPrinting} imprimindo</span>
               <div className="ml-auto flex items-center gap-1.5 text-[10px]" style={{ color: '#71717a' }}>utilização<div className="h-1.5 w-28 overflow-hidden rounded-full" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><div className="h-full" style={{ width: `${rackUtil}%`, background: '#00E5FF' }} /></div><span className="font-bold" style={{ color: '#a5f3fc' }}>{rackUtil}%</span></div>
+              {rackPrinters.length === 0 && <button type="button" onClick={() => toggleExpanded(rack)} className="rounded px-2 py-0.5 text-[10px]" style={{ color: '#71717a' }}>recolher</button>}
             </div>
             <div className={`grid gap-3 ${sides.length === 2 ? 'xl:grid-cols-2' : ''}`}>
-              {sides.map(side => (
+              {sides.map(side => {
+                const sideKey = `${rack}-${side}`
+                const sideHas = FARM_POSITIONS.some(x => x.rack === rack && x.corr === side && bySlot.has(x.end))
+                if (!sideHas && !expanded.has(sideKey)) return (
+                  <div key={side} className="flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: '#111114', border: '1px dashed #1f1f24' }}>
+                    <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: 'rgba(0,229,255,0.06)', color: '#71717a' }}>LADO {side}</span>
+                    <span className="text-[10px]" style={{ color: '#52525b' }}>12 posições livres</span>
+                    <button type="button" onClick={() => toggleExpanded(sideKey)} className="ml-auto rounded px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a5f3fc' }}>mostrar</button>
+                  </div>
+                )
+                return (
                 <div key={side} className="rounded-lg p-2" style={{ background: '#111114', border: '1px solid #1f1f24' }}>
                   <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px]">
                     <span className="rounded px-1.5 py-0.5 font-bold" style={{ background: 'rgba(0,229,255,0.10)', color: '#00E5FF' }}>LADO {side}</span>
                     <span style={{ color: '#71717a' }}>corredor {side === 'A' ? 'da esquerda' : 'da direita'} · como se vê do corredor: <b style={{ color: '#a1a1aa' }}>{side === 'A' ? '04 ← 01' : '01 → 04'}</b> (01 = lado da porta)</span>
+                    {!sideHas && <button type="button" onClick={() => toggleExpanded(sideKey)} className="ml-auto rounded px-2 py-0.5 text-[10px]" style={{ color: '#71717a' }}>recolher</button>}
                   </div>
                   <div className="space-y-1.5">
                     {levels.map(nivel => {
                       let cells = FARM_POSITIONS.filter(x => x.rack === rack && x.corr === side && x.nivel === nivel)
                       if (side === 'A') cells = [...cells].reverse()
+                      const rowKey = `${rack}-${side}-N${nivel}`
+                      if (!cells.some(c => bySlot.has(c.end)) && !expanded.has(rowKey)) return (
+                        <div key={nivel} className="flex items-center gap-1.5 rounded px-1.5 py-1" style={{ background: '#0c0c10', border: '1px dashed #1f1f24' }}>
+                          <span className="w-10 text-center text-[11px] font-extrabold" style={{ color: '#52525b' }}>N{nivel}</span>
+                          <span className="text-[10px]" style={{ color: '#52525b' }}>4 posições livres</span>
+                          <button type="button" onClick={() => toggleExpanded(rowKey)} className="ml-auto rounded px-2 py-0.5 text-[10px] font-semibold" style={{ color: '#a5f3fc' }}>mostrar</button>
+                        </div>
+                      )
                       return (
                         <div key={nivel} className="flex items-stretch gap-1.5">
                           <div className="flex w-10 shrink-0 flex-col items-center justify-center rounded" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><span className="text-[11px] font-extrabold" style={{ color: '#a5f3fc' }}>N{nivel}</span><span className="text-[8px]" style={{ color: '#52525b' }}>{FARM_LEVEL_USE[nivel]}</span></div>
@@ -4611,7 +4643,8 @@ function FarmMapPanel() {
                     })}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )
@@ -4702,7 +4735,7 @@ function FarmMapPanel() {
         <button type="button" onClick={() => void enterFullscreen()} className="flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Maximize2 size={12} /> Tela cheia</button>
       </div>
 
-      <div ref={fitRef} style={{ overflow: 'hidden' }}>{racksView}</div>
+      <div ref={fitRef} style={{ overflow: 'auto' }}>{racksView}</div>
 
       {openPrinter && <PrinterDetailDrawer printer={openPrinter} onClose={() => setOpenPrinter(null)} onChanged={() => void loadPrinters()} />}
     </div>
