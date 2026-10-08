@@ -4354,18 +4354,19 @@ function farmPositions(): FarmPosition[] {
 }
 const FARM_POSITIONS = farmPositions()   // 48 = 2 estantes × 2 lados × 3 níveis × 4
 
-type FarmCellState = 'printing' | 'paused' | 'error' | 'idle' | 'offline' | 'livre'
+type FarmCellState = 'printing' | 'paused' | 'finished' | 'error' | 'idle' | 'offline' | 'livre'
 function farmCellState(p: Printer | undefined, lv: FarmStatus | undefined): FarmCellState {
   if (!p) return 'livre'
   if (!lv || !lv.online) return 'offline'
   if (lv.open_failure || lv.state === 'error') return 'error'
   if (lv.state === 'printing') return 'printing'
   if (lv.state === 'paused') return 'paused'
+  if (lv.state === 'finished') return 'finished'   // terminou; a peça está na mesa até alguém confirmar na impressora
   return 'idle'
 }
 const FARM_STATE_META: Record<FarmCellState, { label: string; color: string }> = {
-  printing: { label: 'Imprimindo', color: '#00E5FF' }, paused: { label: 'Pausada', color: '#fcd34d' }, error: { label: 'Alerta', color: '#f87171' },
-  idle: { label: 'Ociosa', color: '#4ade80' }, offline: { label: 'Offline', color: '#52525b' }, livre: { label: 'Livre', color: '#3f3f46' },
+  printing: { label: 'Imprimindo', color: '#00E5FF' }, paused: { label: 'Pausada', color: '#fcd34d' }, finished: { label: 'Concluído', color: '#22c55e' }, error: { label: 'Alerta', color: '#f87171' },
+  idle: { label: 'Ociosa', color: '#86efac' }, offline: { label: 'Offline', color: '#52525b' }, livre: { label: 'Livre', color: '#3f3f46' },
 }
 function fmtMin(m: number | null | undefined): string { if (m == null) return '—'; const r = Math.round(m); return r >= 60 ? `${Math.floor(r / 60)}h${String(r % 60).padStart(2, '0')}` : `${r}min` }
 
@@ -4458,9 +4459,9 @@ function FarmMapPanel() {
   const unplaced = useMemo(() => printers.filter(p => !p.farm_slot && p.status !== 'aposentada'), [printers])
   // KPIs da frota inteira (não dependem dos filtros)
   const kpi = useMemo(() => {
-    const k: Record<FarmCellState, number> & { maquinas: number; posicionadas: number } = { printing: 0, paused: 0, error: 0, idle: 0, offline: 0, livre: 0, maquinas: printers.length, posicionadas: 0 }
+    const k: Record<FarmCellState, number> & { maquinas: number; posicionadas: number } = { printing: 0, paused: 0, finished: 0, error: 0, idle: 0, offline: 0, livre: 0, maquinas: printers.length, posicionadas: 0 }
     for (const p of printers) { if (p.farm_slot) k.posicionadas++; k[farmCellState(p, live[p.id])]++ }
-    const online = k.printing + k.paused + k.error + k.idle
+    const online = k.printing + k.paused + k.finished + k.error + k.idle
     return { ...k, online, util: online ? Math.round((k.printing / online) * 100) : null }
   }, [printers, live])
 
@@ -4497,7 +4498,7 @@ function FarmMapPanel() {
     catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } finally { setBusy(false) }
   }
 
-  const PILL: Record<FarmCellState, string> = { printing: 'Trabalhando', paused: 'Pausada', error: 'Alerta', idle: 'Ociosa', offline: 'Offline', livre: 'Livre' }
+  const PILL: Record<FarmCellState, string> = { printing: 'Trabalhando', paused: 'Pausada', finished: 'Concluído', error: 'Alerta', idle: 'Ociosa', offline: 'Offline', livre: 'Livre' }
   // Cartão da posição (padrão do mockup do cliente). O cartão é um CONTAINER: imagem, fontes e espaços
   // são frações do tamanho dele (cqw/cqh), então o mesmo cartão serve pequeno na visão "Tudo" e grande
   // na visão de um lado só. Na tela cheia ele preenche a célula da grade; fora dela é quase quadrado.
@@ -4505,7 +4506,7 @@ function FarmMapPanel() {
   const renderCell = (pos: FarmPosition) => {
     const p = bySlot.get(pos.end); const lv = p ? live[p.id] : undefined; const st = farmCellState(p, lv); const meta = FARM_STATE_META[st]
     const dim = (fState !== 'todos' && st !== fState) || !matchesText(p, lv, pos)
-    const co = lv?.current_order; const jp = lv?.job_product; const printing = st === 'printing' || st === 'paused'; const isAssigning = assigning === pos.end
+    const co = lv?.current_order; const jp = lv?.job_product; const done = st === 'finished'; const printing = st === 'printing' || st === 'paused' || done; const isAssigning = assigning === pos.end
     const produto = jp?.name ?? co?.product_name ?? null
     const tray = (lv?.ams ?? []).find(a => a.material)
     const material = co?.material ?? tray?.material ?? null
@@ -4514,12 +4515,12 @@ function FarmMapPanel() {
     const eta = lv?.remaining_minutes != null ? new Date(Date.now() + lv.remaining_minutes * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null
     const elapsed = co?.started_at ? Math.max(0, Math.round((Date.now() - new Date(co.started_at).getTime()) / 60000)) : null
     const titulo = !p ? '' : printing ? (produto ?? lv?.job_name ?? '—') : st === 'idle' ? 'Sem impressão' : st === 'offline' ? 'Sem sinal' : (lv?.open_failure ? `Falha: ${lv.open_failure.reason ?? ''}` : (lv?.error_text ?? `Erro ${lv?.error_code ?? ''}`))
-    const subtitulo = !p ? '' : printing ? (co?.part_name ?? (jp && !jp.product_dev_id ? 'produto não identificado' : (lv?.layer_total ? `camada ${lv.layer_current ?? 0}/${lv.layer_total}` : ''))) : st === 'idle' ? 'aguardando tarefa' : st === 'offline' ? (lv?.bound ? 'agente sem contato' : 'sem nº de série') : ''
+    const subtitulo = !p ? '' : done ? 'pronto: retire a peça e confirme na impressora' : printing ? (co?.part_name ?? (jp && !jp.product_dev_id ? 'produto não identificado' : (lv?.layer_total ? `camada ${lv.layer_current ?? 0}/${lv.layer_total}` : ''))) : st === 'idle' ? 'aguardando tarefa' : st === 'offline' ? (lv?.bound ? 'agente sem contato' : 'sem nº de série') : ''
     const small = fs(10, 3.2, 18), mid = fs(11, 3.6, 20)
     return (
       <div key={pos.end} onClick={() => { if (p) setOpenPrinter(p); else setAssigning(isAssigning ? null : pos.end) }}
         className="flex h-full min-h-0 min-w-0 cursor-pointer flex-col overflow-hidden rounded-lg transition-all hover:border-cyan-700"
-        style={{ ...(scaleCard ? { containerType: 'size' as const, padding: 'clamp(6px, 3cqmin, 14px)', gap: 'clamp(3px, 2cqmin, 10px)' } : { padding: 8, gap: 6, aspectRatio: '1 / 1.05', minHeight: 148 }), boxSizing: 'border-box', background: p ? '#111114' : '#0c0c10', border: `1px ${p ? 'solid' : 'dashed'} ${printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1 }}>
+        style={{ ...(scaleCard ? { containerType: 'size' as const, padding: 'clamp(6px, 3cqmin, 14px)', gap: 'clamp(3px, 2cqmin, 10px)' } : { padding: 8, gap: 6, aspectRatio: '1 / 1.05', minHeight: 148 }), boxSizing: 'border-box', background: done ? 'rgba(34,197,94,0.16)' : p ? '#111114' : '#0c0c10', border: `${done ? 2 : 1}px ${p ? 'solid' : 'dashed'} ${done ? '#22c55e' : printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1 }}>
         {/* cabeçalho: código da posição (1 linha) + estado + sinais */}
         <div className="flex shrink-0 items-center gap-1">
           <span className="font-mono font-extrabold" style={{ fontSize: fs(12, 4, 22), whiteSpace: 'nowrap', color: p ? '#fafafa' : '#71717a' }}>{pos.end}</span>
@@ -4546,12 +4547,12 @@ function FarmMapPanel() {
               const rodape = (
                 <div className="shrink-0" style={{ display: 'flex', flexDirection: 'column', gap: scaleCard ? 'clamp(2px, 1cqh, 8px)' : 3 }}>
                   <div className="flex items-center" style={{ gap: '0.5em', fontSize: mid }}>
-                    <div className="flex-1 overflow-hidden rounded-full" style={{ height: scaleCard ? 'clamp(5px, 2.2cqh, 12px)' : 6, background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${printing ? (lv?.progress_pct ?? 0) : 0}%`, background: meta.color }} /></div>
-                    <span className="font-extrabold" style={{ minWidth: '2.6em', textAlign: 'right', color: printing ? meta.color : '#3f3f46' }}>{printing ? `${Math.round(lv?.progress_pct ?? 0)}%` : '—'}</span>
+                    <div className="flex-1 overflow-hidden rounded-full" style={{ height: scaleCard ? 'clamp(5px, 2.2cqh, 12px)' : 6, background: '#0a0a0e' }}><div className="h-full rounded-full" style={{ width: `${done ? 100 : printing ? (lv?.progress_pct ?? 0) : 0}%`, background: meta.color }} /></div>
+                    <span className="font-extrabold" style={{ minWidth: '2.6em', textAlign: 'right', color: printing ? meta.color : '#3f3f46' }}>{done ? '100%' : printing ? `${Math.round(lv?.progress_pct ?? 0)}%` : '—'}</span>
                   </div>
                   <div className="flex items-center justify-between" style={{ fontSize: small, color: printing ? '#a1a1aa' : '#3f3f46' }}>
                     <span title="decorrido">{printing && elapsed != null ? fmtMin(elapsed) : '- | -'}</span>
-                    <span title="restante · término">{printing ? `${fmtMin(lv?.remaining_minutes)}${eta ? ` · ${eta}` : ''}` : ''}</span>
+                    <span title="restante · término">{done ? 'concluído' : printing ? `${fmtMin(lv?.remaining_minutes)}${eta ? ` · ${eta}` : ''}` : ''}</span>
                   </div>
                   <div className="flex items-center justify-between" style={{ fontSize: small, gap: '0.5em', color: '#71717a' }}>
                     <span className="flex min-w-0 items-center truncate" style={{ gap: '0.3em' }}>{corHex && <span className="shrink-0 rounded-full" style={{ width: '0.7em', height: '0.7em', background: corHex, border: '1px solid #3f3f46' }} />}<span className="truncate">{material ?? '—'}{cor ? ` | ${cor}` : ''}</span></span>
@@ -4680,7 +4681,7 @@ function FarmMapPanel() {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2" style={{ background: '#0d0d10', borderBottom: '1px solid #27272a' }}>
         <div className="flex items-center gap-2"><LayoutGrid size={18} className="text-cyan-400" /><span className="text-base font-extrabold text-white">Print Farm Vazzo</span><span className="text-xs" style={{ color: '#71717a' }}>{viewLabel}</span></div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          {(['printing', 'idle', 'paused', 'error', 'offline'] as FarmCellState[]).map(k => <span key={k} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: FARM_STATE_META[k].color, boxShadow: k === 'printing' && kpi[k] > 0 ? `0 0 8px ${FARM_STATE_META[k].color}` : 'none' }} /><b style={{ color: FARM_STATE_META[k].color }}>{kpi[k]}</b><span style={{ color: '#a1a1aa' }}>{FARM_STATE_META[k].label.toLowerCase()}</span></span>)}
+          {(['printing', 'finished', 'idle', 'paused', 'error', 'offline'] as FarmCellState[]).map(k => <span key={k} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: FARM_STATE_META[k].color, boxShadow: k === 'printing' && kpi[k] > 0 ? `0 0 8px ${FARM_STATE_META[k].color}` : 'none' }} /><b style={{ color: FARM_STATE_META[k].color }}>{kpi[k]}</b><span style={{ color: '#a1a1aa' }}>{FARM_STATE_META[k].label.toLowerCase()}</span></span>)}
           <span style={{ color: '#52525b' }}>· {kpi.posicionadas}/{FARM_POSITIONS.length} posições{unplaced.length ? ` · ${unplaced.length} sem posição` : ''}</span>
         </div>
         <div className="ml-auto flex items-center gap-3">
@@ -4692,7 +4693,7 @@ function FarmMapPanel() {
       <div className="flex flex-wrap items-center gap-2 px-5 py-2 transition-opacity duration-300" style={{ background: '#111114', borderBottom: '1px solid #1f1f24', opacity: barVisible ? 1 : 0, pointerEvents: barVisible ? 'auto' : 'none' }}>
         <FilterSeg label="Visão" value={viewKey} onChange={setView} options={[['tudo', 'Tudo'], ['R01', 'R01'], ['R02', 'R02'], ['/A', 'Lado A'], ['/B', 'Lado B'], ['R01/A', 'R01·A'], ['R01/B', 'R01·B'], ['R02/A', 'R02·A'], ['R02/B', 'R02·B']]} />
         <FilterSeg label="Nível" value={String(fLevel)} onChange={v => setFLevel(v === 'todos' ? 'todos' : Number(v) as FarmLevel)} options={[['todos', 'Todos'], ['3', 'N3'], ['2', 'N2'], ['1', 'N1']]} />
-        <FilterSeg label="Estado" value={fState} onChange={v => setFState(v as 'todos' | FarmCellState)} options={[['todos', 'Todos'], ['printing', 'Imprimindo'], ['idle', 'Ociosa'], ['error', 'Alerta'], ['offline', 'Offline'], ['livre', 'Livre']]} />
+        <FilterSeg label="Estado" value={fState} onChange={v => setFState(v as 'todos' | FarmCellState)} options={[['todos', 'Todos'], ['printing', 'Imprimindo'], ['finished', 'Concluído'], ['idle', 'Ociosa'], ['error', 'Alerta'], ['offline', 'Offline'], ['livre', 'Livre']]} />
         <button type="button" onClick={() => void copyLink()} className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#a5f3fc' }}><Link2 size={12} /> {copied ? 'link copiado!' : 'copiar link desta visão'}</button>
         <span className="text-[10px]" style={{ color: '#52525b' }}>abra o link no PC da TV: entra direto nesta visão em tela cheia</span>
         <button type="button" onClick={() => void exitFullscreen()} className="ml-auto flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold" style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.35)', color: '#00E5FF' }}><Minimize2 size={12} /> Sair da tela cheia (Esc)</button>
@@ -4709,10 +4710,11 @@ function FarmMapPanel() {
       {err && <div className="rounded-lg p-2.5 text-xs" style={{ background: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>{err}</div>}
 
       {/* KPIs — clicar filtra por estado */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
         <Kpi label="Posições ocupadas" value={`${kpi.posicionadas}/${FARM_POSITIONS.length}`} sub={`${FARM_POSITIONS.length - kpi.posicionadas} livre(s) · ${kpi.maquinas} máquina(s)`} accent="#a5f3fc" onClick={() => toggleState('livre')} />
         <Kpi label="Imprimindo" value={String(kpi.printing)} sub={kpi.util != null ? `${kpi.util}% das online` : 'sem telemetria'} accent="#00E5FF" onClick={() => toggleState('printing')} />
         <Kpi label="Ociosas" value={String(kpi.idle)} sub="prontas pra ordem" accent="#4ade80" onClick={() => toggleState('idle')} />
+        <Kpi label="Concluídas" value={String(kpi.finished)} sub="peça pronta na mesa" accent="#22c55e" onClick={() => toggleState('finished')} />
         <Kpi label="Pausadas" value={String(kpi.paused)} sub="aguardando retomar" accent="#fcd34d" onClick={() => toggleState('paused')} />
         <Kpi label="Em alerta" value={String(kpi.error)} sub="erro ou falha aberta" accent="#f87171" onClick={() => toggleState('error')} />
         <Kpi label="Offline" value={String(kpi.offline)} sub="sem sinal do agente" accent="#71717a" onClick={() => toggleState('offline')} />
@@ -4725,7 +4727,7 @@ function FarmMapPanel() {
         <FilterSeg label="Estante" value={fRack} onChange={v => setFRack(v as 'todas' | FarmRack)} options={[['todas', 'Todas'], ['R01', 'R01 frente'], ['R02', 'R02 fundo']]} />
         <FilterSeg label="Nível" value={String(fLevel)} onChange={v => setFLevel(v === 'todos' ? 'todos' : Number(v) as FarmLevel)} options={[['todos', 'Todos'], ['3', 'N3 alto'], ['2', 'N2 meio'], ['1', 'N1 baixo']]} />
         <FilterSeg label="Corredor" value={fSide} onChange={v => setFSide(v as 'todos' | FarmSide)} options={[['todos', 'Ambos'], ['A', 'A · esquerda'], ['B', 'B · direita']]} />
-        <FilterSeg label="Estado" value={fState} onChange={v => setFState(v as 'todos' | FarmCellState)} options={[['todos', 'Todos'], ['printing', 'Imprimindo'], ['idle', 'Ociosa'], ['paused', 'Pausada'], ['error', 'Alerta'], ['offline', 'Offline'], ['livre', 'Livre']]} />
+        <FilterSeg label="Estado" value={fState} onChange={v => setFState(v as 'todos' | FarmCellState)} options={[['todos', 'Todos'], ['printing', 'Imprimindo'], ['finished', 'Concluído'], ['idle', 'Ociosa'], ['paused', 'Pausada'], ['error', 'Alerta'], ['offline', 'Offline'], ['livre', 'Livre']]} />
         {(fRack !== 'todas' || fLevel !== 'todos' || fSide !== 'todos' || fState !== 'todos' || q) && <button type="button" onClick={() => { setFRack('todas'); setFLevel('todos'); setFSide('todos'); setFState('todos'); setQ('') }} className="text-[10px] font-semibold" style={{ color: '#a5f3fc' }}>limpar filtros</button>}
         <span className="flex flex-wrap items-center gap-2 text-[10px]" style={{ color: '#71717a' }}>{(Object.keys(FARM_STATE_META) as FarmCellState[]).map(k => <span key={k} className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: FARM_STATE_META[k].color }} />{FARM_STATE_META[k].label}</span>)}</span>
         <span className="ml-auto text-[10px]" style={{ color: '#52525b' }}>{visible.length} posição(ões) · {tickAt ? `telemetria ${tickAt.toLocaleTimeString('pt-BR')}` : 'aguardando telemetria…'} · atualiza a cada 5s</span>
@@ -4740,10 +4742,10 @@ function FarmMapPanel() {
   )
 }
 
-const STATE_LABEL: Record<string, string> = { printing: 'IMPRIMINDO', paused: 'PAUSADA', error: 'ERRO', offline: 'OFFLINE', idle: 'OCIOSA', sem_dados: 'SEM DADOS' }
+const STATE_LABEL: Record<string, string> = { printing: 'IMPRIMINDO', paused: 'PAUSADA', finished: 'CONCLUÍDO', error: 'ERRO', offline: 'OFFLINE', idle: 'OCIOSA', sem_dados: 'SEM DADOS' }
 function stateColor(lv?: FarmStatus): string {
   if (!lv || !lv.online) return '#52525b'
-  return lv.state === 'printing' ? '#00E5FF' : lv.state === 'error' ? '#f87171' : lv.state === 'paused' ? '#fcd34d' : '#4ade80'
+  return lv.state === 'printing' ? '#00E5FF' : lv.state === 'error' ? '#f87171' : lv.state === 'paused' ? '#fcd34d' : lv.state === 'finished' ? '#22c55e' : '#4ade80'
 }
 function LiveMonitorPanel() {
   const [printers, setPrinters] = useState<Printer[]>([]); const [live, setLive] = useState<Record<string, FarmStatus>>({})
@@ -4960,7 +4962,7 @@ function PrintersPanel() {
 
 function LiveBadge({ lv }: { lv?: FarmStatus }) {
   if (!lv || !lv.bound) return <p className="mt-1 text-[9px]" style={{ color: '#3f3f46' }}>sem telemetria (vincule o nº de série)</p>
-  const label: Record<string, string> = { printing: 'imprimindo', paused: 'pausada', error: 'erro', offline: 'offline', idle: 'ociosa', sem_dados: 'sem dados' }
+  const label: Record<string, string> = { printing: 'imprimindo', paused: 'pausada', finished: 'concluído — peça na mesa', error: 'erro', offline: 'offline', idle: 'ociosa', sem_dados: 'sem dados' }
   const color = lv.state === 'printing' ? '#00E5FF' : lv.state === 'error' ? '#f87171' : lv.state === 'offline' ? '#52525b' : lv.online ? '#4ade80' : '#52525b'
   return (
     <div className="mt-1.5" onClick={e => e.stopPropagation()}>
