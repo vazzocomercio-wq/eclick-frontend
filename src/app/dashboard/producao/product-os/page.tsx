@@ -4506,7 +4506,7 @@ function FarmMapPanel() {
   const renderCell = (pos: FarmPosition) => {
     const p = bySlot.get(pos.end); const lv = p ? live[p.id] : undefined; const st = farmCellState(p, lv); const meta = FARM_STATE_META[st]
     const dim = (fState !== 'todos' && st !== fState) || !matchesText(p, lv, pos)
-    const co = lv?.current_order; const jp = lv?.job_product; const done = st === 'finished'; const printing = st === 'printing' || st === 'paused' || done; const isAssigning = assigning === pos.end
+    const co = lv?.current_order; const jp = lv?.job_product; const done = st === 'finished'; const idle = st === 'idle'; const printing = st === 'printing' || st === 'paused' || done; const isAssigning = assigning === pos.end
     const produto = jp?.name ?? co?.product_name ?? null
     const tray = (lv?.ams ?? []).find(a => a.material)
     const material = co?.material ?? tray?.material ?? null
@@ -4520,7 +4520,7 @@ function FarmMapPanel() {
     return (
       <div key={pos.end} onClick={() => { if (p) setOpenPrinter(p); else setAssigning(isAssigning ? null : pos.end) }}
         className="flex h-full min-h-0 min-w-0 cursor-pointer flex-col overflow-hidden rounded-lg transition-all hover:border-cyan-700"
-        style={{ ...(scaleCard ? { containerType: 'size' as const, padding: 'clamp(6px, 3cqmin, 14px)', gap: 'clamp(3px, 2cqmin, 10px)' } : { padding: 8, gap: 6, aspectRatio: '1 / 1.05', minHeight: 148 }), boxSizing: 'border-box', background: done ? 'rgba(34,197,94,0.16)' : p ? '#111114' : '#0c0c10', border: `${done ? 2 : 1}px ${p ? 'solid' : 'dashed'} ${done ? '#22c55e' : printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1 }}>
+        style={{ ...(scaleCard ? { containerType: 'size' as const, padding: 'clamp(6px, 3cqmin, 14px)', gap: 'clamp(3px, 2cqmin, 10px)' } : { padding: 8, gap: 6, aspectRatio: '1 / 1.05', minHeight: 148 }), boxSizing: 'border-box', background: done ? 'rgba(34,197,94,0.16)' : idle ? 'rgba(134,239,172,0.08)' : p ? '#111114' : '#0c0c10', border: `${done ? 2 : 1}px ${p ? 'solid' : 'dashed'} ${done ? '#22c55e' : idle ? 'rgba(134,239,172,0.55)' : printing ? 'rgba(0,229,255,0.35)' : st === 'error' ? 'rgba(239,68,68,0.5)' : p ? '#27272a' : '#1f1f24'}`, opacity: dim ? 0.2 : 1 }}>
         {/* cabeçalho: código da posição (1 linha) + estado + sinais */}
         <div className="flex shrink-0 items-center gap-1">
           <span className="font-mono font-extrabold" style={{ fontSize: fs(12, 4, 22), whiteSpace: 'nowrap', color: p ? '#fafafa' : '#71717a' }}>{pos.end}</span>
