@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, useMemo, Fragment, type CSSProperties } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo, Fragment, type CSSProperties, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors,
@@ -187,6 +187,11 @@ interface ProductionPlan {
   capacity_hours: number; active_printers: number; hours_used: number; hours_idle: number; utilization_pct: number; total_contribution: number
   plan: Array<{ product_dev_id: string; name: string; units: number; hours: number; profit_per_hour: number | null; contribution: number }>
 }
+interface FarmControls {
+  speed_level?: number | null; speed_pct?: number | null; nozzle_target?: number | null; bed_target?: number | null
+  fan_part_pct?: number | null; fan_aux_pct?: number | null; fan_chamber_pct?: number | null
+  tray_now?: string | null; agent_version?: string; commands?: string[]
+}
 interface FarmStatus {
   id: string; name: string; config_status: string; bound: boolean; online: boolean; state: string
   job_name: string | null; progress_pct: number | null; layer_current: number | null; layer_total: number | null
@@ -194,6 +199,7 @@ interface FarmStatus {
   ams: Array<{ slot: string; material: string; color: string; remain_pct: number }> | null
   error_code: string | null; error_text: string | null; last_update: string | null
   camera_url?: string | null; camera_at?: string | null; light_on?: boolean | null
+  controls?: FarmControls | null   // velocidade/alvos/ventoinhas (agente ≥ 1.5.0)
   ai_detection_enabled?: boolean; ai_sensitivity?: string; auto_dispatch?: boolean
   open_failure?: { id: string; reason: string | null; detected_at: string } | null
   has_ams?: boolean; farm_slot?: string | null
@@ -4749,16 +4755,15 @@ function stateColor(lv?: FarmStatus): string {
 }
 function LiveMonitorPanel() {
   const [printers, setPrinters] = useState<Printer[]>([]); const [live, setLive] = useState<Record<string, FarmStatus>>({})
-  const [loaded, setLoaded] = useState<Record<string, LoadedFilament[]>>({}); const [err, setErr] = useState(''); const [cmdMsg, setCmdMsg] = useState<Record<string, string>>({})
+  const [loaded, setLoaded] = useState<Record<string, LoadedFilament[]>>({}); const [err, setErr] = useState('')
   const [camHidden, setCamHidden] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem('product-os:camHidden') || '{}') } catch { return {} } })
   const toggleCam = (pid: string) => setCamHidden(m => { const next = { ...m, [pid]: !m[pid] }; try { localStorage.setItem('product-os:camHidden', JSON.stringify(next)) } catch { /* */ } return next })
-  const [lightOpt, setLightOpt] = useState<Record<string, boolean>>({})  // estado otimista da luz até a telemetria confirmar
 
   useEffect(() => { void (async () => { try { setPrinters(await api<Printer[]>('/product-os/printers')) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } })() }, [])
   // telemetria ao vivo (5s)
   useEffect(() => {
     let alive = true
-    const tick = async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); if (!alive) return; setLive(Object.fromEntries(s.map(x => [x.id, x]))); setLightOpt(opt => { const next = { ...opt }; let ch = false; for (const x of s) if (x.id in next && x.light_on != null && next[x.id] === x.light_on) { delete next[x.id]; ch = true }; return ch ? next : opt }) } catch { /* */ } }
+    const tick = async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); if (!alive) return; setLive(Object.fromEntries(s.map(x => [x.id, x]))) } catch { /* */ } }
     void tick(); const it = setInterval(tick, 5000); return () => { alive = false; clearInterval(it) }
   }, [])
   // filamento montado por impressora (refresca a cada 20s)
@@ -4768,12 +4773,6 @@ function LiveMonitorPanel() {
   }, [])
   useEffect(() => { if (!printers.length) return; const ids = printers.map(p => p.id); void loadFilaments(ids); const it = setInterval(() => void loadFilaments(ids), 20000); return () => clearInterval(it) }, [printers, loadFilaments])
 
-  const cmd = async (pid: string, type: string) => {
-    if (type === 'stop' && !(await confirmDialog({ title: 'Parar impressão', message: 'Parar a impressão atual? Cancela o job na máquina.', danger: true, confirmLabel: 'Parar' }))) return
-    setCmdMsg(m => ({ ...m, [pid]: '' }))
-    try { await api(`/product-os/farm/printers/${pid}/command`, { method: 'POST', body: JSON.stringify({ type }) }); setCmdMsg(m => ({ ...m, [pid]: 'Comando enviado.' })) }
-    catch (e) { setCmdMsg(m => ({ ...m, [pid]: e instanceof Error ? e.message : 'Erro' })) }
-  }
   const ackFail = async (pid: string, id: string, fp: boolean) => {
     try { await api(`/product-os/farm/failures/${id}/ack`, { method: 'POST', body: JSON.stringify({ false_positive: fp }) }); setLive(o => ({ ...o, [pid]: { ...o[pid], open_failure: null } })) } catch { /* */ }
   }
@@ -4878,15 +4877,7 @@ function LiveMonitorPanel() {
                 {lv?.error_text && <p className="mt-2 text-[10px]" style={{ color: '#f87171' }}>⚠️ {lv.error_code} {lv.error_text}</p>}
 
                 {/* controles */}
-                {lv?.online && lv.bound && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {lv.state === 'printing' && <CtrlBtn onClick={() => void cmd(p.id, 'pause')} label="Pausar" />}
-                    {lv.state === 'paused' && <CtrlBtn onClick={() => void cmd(p.id, 'resume')} label="Retomar" />}
-                    {(lv.state === 'printing' || lv.state === 'paused') && <CtrlBtn onClick={() => void cmd(p.id, 'stop')} label="Parar" danger />}
-                    {(() => { const on = lightOpt[p.id] ?? lv.light_on ?? false; return <CtrlBtn onClick={() => { setLightOpt(m => ({ ...m, [p.id]: !on })); void cmd(p.id, on ? 'light_off' : 'light_on') }} label={on ? '💡 Luz: ligada' : '🌙 Luz: apagada'} /> })()}
-                  </div>
-                )}
-                {cmdMsg[p.id] && <p className="mt-1 text-[10px]" style={{ color: '#a5f3fc' }}>{cmdMsg[p.id]}</p>}
+                {lv?.online && lv.bound && <PrinterControls pid={p.id} lv={lv} />}
               </div>
             )
           })}
@@ -5271,12 +5262,6 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
   useEffect(() => { void (async () => { try { setA(await api<PrinterAnalytics>(`/product-os/printers/${id}/analytics`)) } catch (e) { setErr(e instanceof Error ? e.message : 'Erro') } })() }, [id])
   const loadLive = useCallback(async () => { try { const s = await api<FarmStatus[]>('/product-os/farm/status'); setLive(s.find(x => x.id === id) ?? null) } catch { /* */ } }, [id])
   useEffect(() => { void loadLive(); const it = setInterval(() => void loadLive(), 5000); return () => clearInterval(it) }, [loadLive])
-  const cmd = async (type: string) => {
-    if (type === 'stop' && !(await confirmDialog({ title: 'Parar impressão', message: 'Parar a impressão atual? Isso cancela o job na máquina.', danger: true, confirmLabel: 'Parar' }))) return
-    setCmdMsg('')
-    try { await api(`/product-os/farm/printers/${id}/command`, { method: 'POST', body: JSON.stringify({ type }) }); setCmdMsg('Comando enviado à impressora.') }
-    catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') }
-  }
   const setAi = async (enabled: boolean, sensitivity?: string) => {
     try { await api(`/product-os/farm/printers/${id}/ai-detection`, { method: 'POST', body: JSON.stringify({ enabled, sensitivity }) }); await loadLive() }
     catch (e) { setCmdMsg(e instanceof Error ? e.message : 'Erro') }
@@ -5331,16 +5316,8 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
                   <span className="h-1.5 w-1.5 rounded-full" style={{ background: live.online ? (live.state === 'printing' ? '#00E5FF' : live.state === 'error' ? '#f87171' : '#4ade80') : '#52525b' }} />
                   <span className="text-[11px] font-semibold" style={{ color: '#a1a1aa' }}>{live.online ? live.state : 'offline'}</span>
                   {live.state === 'printing' && live.progress_pct != null && <span className="text-[11px]" style={{ color: '#a5f3fc' }}>{Math.round(live.progress_pct)}%{live.remaining_minutes != null ? ` · ${live.remaining_minutes}min` : ''}</span>}
-                  {live.online && (
-                    <div className="ml-auto flex gap-1">
-                      {live.state === 'printing' && <CtrlBtn onClick={() => void cmd('pause')} label="Pausar" />}
-                      {live.state === 'paused' && <CtrlBtn onClick={() => void cmd('resume')} label="Retomar" />}
-                      {(live.state === 'printing' || live.state === 'paused') && <CtrlBtn onClick={() => void cmd('stop')} label="Parar" danger />}
-                      <CtrlBtn onClick={() => void cmd('light_on')} label="Luz" />
-                      <CtrlBtn onClick={() => void cmd('light_off')} label="Off" />
-                    </div>
-                  )}
                 </div>
+                {live.online && live.bound && <PrinterControls pid={id} lv={live} startOpen />}
                 {cmdMsg && <p className="mt-1 text-[10px]" style={{ color: '#a5f3fc' }}>{cmdMsg}</p>}
                 {!live.online && <p className="mt-1 text-[10px]" style={{ color: '#52525b' }}>Offline — sem controle. Verifique o agente na fábrica.</p>}
               </div>
@@ -5543,8 +5520,166 @@ function PrinterDetailDrawer({ printer, onClose, onChanged }: { printer: Printer
 function Stat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg py-1.5" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}><p className="text-sm font-bold text-white">{value}</p><p className="text-[9px]" style={{ color: '#52525b' }}>{label}</p></div>
 }
-function CtrlBtn({ onClick, label, danger }: { onClick: () => void; label: string; danger?: boolean }) {
-  return <button onClick={onClick} className="rounded px-2 py-1 text-[10px] font-semibold" style={{ background: danger ? 'rgba(239,68,68,0.10)' : 'rgba(0,229,255,0.10)', color: danger ? '#f87171' : '#a5f3fc', border: `1px solid ${danger ? 'rgba(239,68,68,0.3)' : '#27272a'}` }}>{label}</button>
+function CtrlBtn({ onClick, label, danger, active, disabled, title }: { onClick: () => void; label: string; danger?: boolean; active?: boolean; disabled?: boolean; title?: string }) {
+  return <button onClick={onClick} disabled={disabled} title={title} className="rounded px-2 py-1 text-[10px] font-semibold disabled:cursor-not-allowed disabled:opacity-40" style={{ background: danger ? 'rgba(239,68,68,0.10)' : active ? 'rgba(0,229,255,0.28)' : 'rgba(0,229,255,0.10)', color: danger ? '#f87171' : active ? '#fff' : '#a5f3fc', border: `1px solid ${danger ? 'rgba(239,68,68,0.3)' : active ? 'rgba(0,229,255,0.6)' : '#27272a'}` }}>{label}</button>
+}
+
+const SPEED_LEVELS = [{ level: 1, label: 'Silencioso', pct: 50 }, { level: 2, label: 'Padrão', pct: 100 }, { level: 3, label: 'Esporte', pct: 124 }, { level: 4, label: 'Ludicrous', pct: 166 }]
+const CMD_LABEL: Record<string, string> = {
+  pause: 'Pausar', resume: 'Retomar', stop: 'Parar', light_on: 'Ligar luz', light_off: 'Apagar luz', speed: 'Velocidade',
+  nozzle_temp: 'Temperatura do bico', bed_temp: 'Temperatura da mesa', fan: 'Ventoinha', home: 'Home', move: 'Mover eixo',
+  extrude: 'Extrusão', ams_load: 'Carregar filamento', ams_unload: 'Descarregar filamento', calibrate: 'Calibração',
+  clean_error: 'Limpar erro', gcode: 'G-code',
+}
+
+/** Painel de controle remoto de UMA impressora — tudo que o Bambu Studio/Handy fazem pela LAN.
+ *  Usado no card do Monitor ao vivo (compacto, com "mais controles") e na gaveta da impressora/Mapa da farm. */
+function PrinterControls({ pid, lv, startOpen }: { pid: string; lv: FarmStatus; startOpen?: boolean }) {
+  const [open, setOpen] = useState(!!startOpen)
+  const [msg, setMsg] = useState<{ text: string; tone: 'info' | 'ok' | 'err' } | null>(null)
+  const [lightOpt, setLightOpt] = useState<boolean | null>(null)
+  const [step, setStep] = useState(10)
+  const [nozzle, setNozzle] = useState(''); const [bed, setBed] = useState(''); const [fan, setFan] = useState<number | null>(null)
+  const [cal, setCal] = useState({ bed_leveling: true, vibration: false, motor_noise: false })
+  const [gline, setGline] = useState('')
+  const pollRef = useRef(0)
+  useEffect(() => () => { pollRef.current++ }, [])
+  useEffect(() => { if (lightOpt != null && lv.light_on === lightOpt) setLightOpt(null) }, [lv.light_on, lightOpt])
+
+  const c = lv.controls ?? null
+  const printing = lv.state === 'printing', paused = lv.state === 'paused'
+  const busy = printing || paused
+  const novo = !!c?.commands?.includes('speed')   // agente ≥ 1.5.0 (sabe os comandos novos)
+  const stoppedTip = busy ? 'Só com a impressora parada' : undefined
+
+  const send = async (type: string, payload?: Record<string, unknown>, confirm?: { title: string; message: string; danger?: boolean; confirmLabel?: string }) => {
+    if (confirm && !(await confirmDialog(confirm))) return
+    const label = CMD_LABEL[type] ?? type
+    setMsg({ text: `${label}: enviando…`, tone: 'info' })
+    let id: string
+    try { id = (await api<{ command_id: string }>(`/product-os/farm/printers/${pid}/command`, { method: 'POST', body: JSON.stringify({ type, payload: payload ?? {} }) })).command_id }
+    catch (e) { setMsg({ text: e instanceof Error ? e.message : 'Erro', tone: 'err' }); return }
+    // acompanha o resultado do agente (~5s) pra mostrar feito/erro de verdade
+    const my = ++pollRef.current
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 2000))
+      if (my !== pollRef.current) return
+      try {
+        const s = await api<{ status: string; result: string | null }>(`/product-os/farm/commands/${id}`)
+        if (s.status === 'done') { setMsg({ text: `${label}: feito na impressora ✓`, tone: 'ok' }); return }
+        if (s.status === 'failed') { setMsg({ text: `${label}: ${s.result || 'falhou'}`, tone: 'err' }); return }
+        setMsg({ text: `${label}: ${s.status === 'sent' ? 'na impressora…' : 'na fila do agente…'}`, tone: 'info' })
+      } catch { /* tenta de novo */ }
+    }
+    if (my === pollRef.current) setMsg({ text: `${label}: enviado, sem confirmação do agente ainda (verifique se ele está rodando)`, tone: 'info' })
+  }
+
+  const on = lightOpt ?? lv.light_on ?? false
+  const hasErr = lv.state === 'error' || !!lv.error_code
+  const tempRow = (label: string, cur: number | null, target: number | null | undefined, val: string, setVal: (v: string) => void, type: 'nozzle_temp' | 'bed_temp', presets: number[], max: number) => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="w-14 text-[10px]" style={{ color: '#a1a1aa' }}>{label}</span>
+      <span className="w-[86px] text-[10px] font-mono" style={{ color: '#fafafa' }}>{cur != null ? `${Math.round(cur)}°` : '—'}{target != null ? <span style={{ color: '#71717a' }}> / {Math.round(target)}°</span> : null}</span>
+      <input value={val} onChange={e => setVal(e.target.value.replace(/[^\d]/g, ''))} placeholder="°C" inputMode="numeric" className="w-14 rounded px-1.5 py-1 text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+      <CtrlBtn label="Definir" disabled={!val || Number(val) > max} onClick={() => { void send(type, { temp: Number(val) }); setVal('') }} />
+      {presets.map(t => <CtrlBtn key={t} label={`${t}°`} onClick={() => void send(type, { temp: t })} />)}
+      <CtrlBtn label="Desligar" onClick={() => void send(type, { temp: 0 }, busy ? { title: `Desligar ${label.toLowerCase()}`, message: `A impressora está ${printing ? 'imprimindo' : 'pausada'}. Desligar o aquecimento agora pode estragar a peça. Continuar?`, danger: true, confirmLabel: 'Desligar' } : undefined)} />
+    </div>
+  )
+  const section = (title: string, children: ReactNode) => (
+    <div className="rounded-md p-2" style={{ background: '#0a0a0e', border: '1px solid #1a1a1f' }}>
+      <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wide" style={{ color: '#71717a' }}>{title}</p>
+      {children}
+    </div>
+  )
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {printing && <CtrlBtn onClick={() => void send('pause')} label="⏸ Pausar" />}
+        {paused && <CtrlBtn onClick={() => void send('resume')} label="▶ Retomar" />}
+        {busy && <CtrlBtn onClick={() => void send('stop', undefined, { title: 'Parar impressão', message: 'Parar a impressão atual? Cancela o job na máquina.', danger: true, confirmLabel: 'Parar' })} label="⏹ Parar" danger />}
+        <CtrlBtn onClick={() => { setLightOpt(!on); void send(on ? 'light_off' : 'light_on') }} label={on ? '💡 Luz: ligada' : '🌙 Luz: apagada'} />
+        {hasErr && <CtrlBtn onClick={() => void send('clean_error')} label="🧹 Limpar erro" disabled={!novo} title={novo ? 'Limpa o erro na tela da impressora' : 'Atualize o agente da farm (≥ 1.5.0)'} />}
+        <button onClick={() => setOpen(o => !o)} className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold" style={{ color: '#a5f3fc', border: '1px solid #27272a' }}><Settings2 size={11} />{open ? 'Menos controles' : 'Mais controles'}</button>
+      </div>
+
+      {open && (
+        <div className="space-y-2">
+          {!novo && <p className="rounded-md p-2 text-[10px]" style={{ background: 'rgba(250,204,21,0.08)', color: '#fde68a', border: '1px solid rgba(250,204,21,0.25)' }}>O agente da fábrica{c?.agent_version ? ` (v${c.agent_version})` : ''} ainda é a versão antiga: só pausar/retomar/parar/luz funcionam. Atualize o <b>agent.mjs</b> para a v1.5.0 no PC da farm e reinicie o agente para liberar velocidade, temperaturas, ventoinha, eixos, AMS e calibração.</p>}
+
+          {section('Velocidade', (
+            <div className="flex flex-wrap gap-1.5">
+              {SPEED_LEVELS.map(s => <CtrlBtn key={s.level} active={c?.speed_level === s.level} disabled={!novo} onClick={() => void send('speed', { level: s.level })} label={`${s.label} ${s.pct}%`} />)}
+            </div>
+          ))}
+
+          {section('Temperaturas', (
+            <div className="space-y-1.5">
+              {tempRow('Bico', lv.nozzle_temp, c?.nozzle_target, nozzle, setNozzle, 'nozzle_temp', [220, 250], 300)}
+              {tempRow('Mesa', lv.bed_temp, c?.bed_target, bed, setBed, 'bed_temp', [65, 80], 110)}
+            </div>
+          ))}
+
+          {section(`Ventoinha da peça${c?.fan_part_pct != null ? ` · agora ${c.fan_part_pct}%` : ''}`, (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <input type="range" min={0} max={100} step={10} value={fan ?? c?.fan_part_pct ?? 0} onChange={e => setFan(Number(e.target.value))} className="w-32" disabled={!novo} />
+              <span className="w-9 text-[10px] font-mono" style={{ color: '#fafafa' }}>{fan ?? c?.fan_part_pct ?? 0}%</span>
+              <CtrlBtn label="Aplicar" disabled={!novo || fan == null} onClick={() => { void send('fan', { which: 'part', pct: fan }); setFan(null) }} />
+              {[0, 50, 100].map(v => <CtrlBtn key={v} label={`${v}%`} disabled={!novo} onClick={() => void send('fan', { which: 'part', pct: v })} />)}
+            </div>
+          ))}
+
+          {section('Movimento e extrusão (impressora parada)', (
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <CtrlBtn label="🏠 Home" disabled={!novo || busy} title={stoppedTip} onClick={() => void send('home')} />
+                <span className="text-[10px]" style={{ color: '#71717a' }}>passo</span>
+                {[1, 10, 50].map(s => <CtrlBtn key={s} label={`${s}mm`} active={step === s} onClick={() => setStep(s)} />)}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(['X', 'Y', 'Z'] as const).map(ax => (
+                  <span key={ax} className="flex items-center gap-1">
+                    <CtrlBtn label={`${ax}−`} disabled={!novo || busy} title={stoppedTip} onClick={() => void send('move', { axis: ax, mm: -step })} />
+                    <CtrlBtn label={`${ax}+`} disabled={!novo || busy} title={stoppedTip} onClick={() => void send('move', { axis: ax, mm: step })} />
+                  </span>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <CtrlBtn label="Extrudar 10mm" disabled={!novo || busy} title={stoppedTip ?? 'Bico precisa estar a 170°C+'} onClick={() => void send('extrude', { mm: 10 })} />
+                <CtrlBtn label="Retrair 10mm" disabled={!novo || busy} title={stoppedTip ?? 'Bico precisa estar a 170°C+'} onClick={() => void send('extrude', { mm: -10 })} />
+              </div>
+            </div>
+          ))}
+
+          {section('Filamento (impressora parada)', (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {lv.has_ams && [0, 1, 2, 3].map(s => <CtrlBtn key={s} label={`Carregar B${s + 1}`} active={c?.tray_now === String(s)} disabled={!novo || busy} title={stoppedTip} onClick={() => void send('ams_load', { slot: s })} />)}
+              {!lv.has_ams && <CtrlBtn label="Carregar rolo externo" disabled={!novo || busy} title={stoppedTip} onClick={() => void send('ams_load', { slot: 254 })} />}
+              <CtrlBtn label="Descarregar" disabled={!novo || busy} title={stoppedTip} onClick={() => void send('ams_unload')} />
+            </div>
+          ))}
+
+          {section('Calibração (impressora parada)', (
+            <div className="flex flex-wrap items-center gap-2">
+              {([['bed_leveling', 'Nivelamento da mesa'], ['vibration', 'Vibração'], ['motor_noise', 'Ruído do motor']] as const).map(([k, l]) => (
+                <label key={k} className="flex items-center gap-1 text-[10px]" style={{ color: '#d4d4d8' }}><input type="checkbox" checked={cal[k]} onChange={e => setCal(o => ({ ...o, [k]: e.target.checked }))} />{l}</label>
+              ))}
+              <CtrlBtn label="Calibrar" disabled={!novo || busy || (!cal.bed_leveling && !cal.vibration && !cal.motor_noise)} title={stoppedTip} onClick={() => void send('calibrate', cal, { title: 'Calibrar impressora', message: 'A impressora vai se mover sozinha por alguns minutos. A mesa precisa estar vazia. Continuar?', confirmLabel: 'Calibrar' })} />
+            </div>
+          ))}
+
+          {section('G-code (avançado)', (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <input value={gline} onChange={e => setGline(e.target.value)} placeholder="ex.: M106 P1 S255" className="min-w-0 flex-1 rounded px-1.5 py-1 font-mono text-[10px] outline-none" style={{ background: '#0a0a0e', border: '1px solid #27272a', color: '#fafafa' }} />
+              <CtrlBtn label="Enviar" disabled={!novo || !gline.trim()} onClick={() => { const line = gline; void send('gcode', { line }, { title: 'Enviar G-code', message: `Mandar direto pra impressora:\n${line}\n\nG-code errado pode bater o bico na mesa ou estragar a impressão em curso.`, danger: true, confirmLabel: 'Enviar' }).then(() => setGline('')) }} />
+            </div>
+          ))}
+        </div>
+      )}
+      {msg && <p className="text-[10px]" style={{ color: msg.tone === 'err' ? '#f87171' : msg.tone === 'ok' ? '#4ade80' : '#a5f3fc' }}>{msg.text}</p>}
+    </div>
+  )
 }
 
 function NewPrinterModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
